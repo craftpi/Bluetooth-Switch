@@ -5,7 +5,7 @@
 #include <Preferences.h> // Zum dauerhaften Speichern
 
 // --- KONFIGURATION ---
-BleKeyboard bleKeyboard("OneNote Remote", "DeinName", 100);
+BleKeyboard bleKeyboard("OneNote Switch", "DeinName", 100);
 Preferences preferences;
 
 // UUIDs für den Konfigurations-Kanal (Zufällig generiert)
@@ -119,34 +119,53 @@ void setup() {
   prevKeyMod = preferences.getUChar("modPrev", KEY_LEFT_CTRL);   
   prevKeyCode = preferences.getUChar("codePrev", KEY_PAGE_UP);   
 
-  // 2. Aufwach-Grund prüfen
+  // 2. Aufwach-Grund
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) pendingAction = 1; 
   else if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT1) pendingAction = 2; 
   else pendingAction = 0;
 
-  // 3. Bluetooth Starten
+  // 3. Bluetooth starten
   int startBatteryLevel = getBatteryPercentage();
   bleKeyboard.setBatteryLevel(startBatteryLevel, true); 
   bleKeyboard.begin();
 
-  // 4. Config Service hinzufügen (NACH bleKeyboard.begin)
+  // 4. Config Service erstellen
   NimBLEServer* pServer = NimBLEDevice::getServer();
   if (pServer) {
       NimBLEService* pService = pServer->createService(CONFIG_SERVICE_UUID);
-      
-      // HIER WAR DER FEHLER: NIMBLE_PROPERTY::WRITE ist korrekt
       NimBLECharacteristic* pChar = pService->createCharacteristic(
                                        CONFIG_CHAR_UUID, 
-                                       NIMBLE_PROPERTY::WRITE
+                                       NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
                                     );
-      
       pChar->setCallbacks(new ConfigCallbacks());
       pService->start();
+
+      // --- HIER IST DER FIX FÜR DAS FINDEN ---
+      
+      NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+      
+      // Erstmal stoppen, damit wir die Daten sauber neu setzen können
+      pAdvertising->stop();
+      
+      // Paket 1 (Das "Hallo, hier bin ich"-Paket): Enthält NUR die UUID des Config-Service
+      // Damit kann der Browser sofort filtern.
+      NimBLEAdvertisementData mainAd;
+      mainAd.setFlags(0x06); // General Discoverable + BLE Only
+      mainAd.setCompleteServices(NimBLEUUID(CONFIG_SERVICE_UUID)); 
+      pAdvertising->setAdvertisementData(mainAd);
+
+      // Paket 2 (Die Antwort, wenn der PC fragt "Wer bist du?"): Enthält den Namen
+      NimBLEAdvertisementData scanResponse;
+      scanResponse.setName("OneNote Switch");
+      pAdvertising->setScanResponseData(scanResponse);
+      
+      // Jetzt wieder starten
+      pAdvertising->start();
   }
   
   lastActivityTime = millis();
-  debug("Bluetooth gestartet. Warte auf Verbindung...");
+  debug("Bluetooth gestartet. Advertising Split-Fix aktiv!");
 }
 
 void loop() {

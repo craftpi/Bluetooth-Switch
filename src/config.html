@@ -3,113 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Config</title>
+    <title>OneNote Switch Config</title>
     <style>
-        body { font-family: sans-serif; max-width: 500px; margin: 20px auto; padding: 20px; background: #f4f4f4; text-align: center;}
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        select, input { padding: 10px; width: 80%; margin: 5px 0; font-size: 16px; }
-        button { background: #007bff; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 10px;}
-        button.save { background: #28a745; }
-        button:disabled { background: #ccc; }
-        #status { margin-top: 10px; font-weight: bold; color: #555; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; background: #f0f2f5; text-align: center; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        select, input { padding: 12px; width: 100%; margin: 8px 0 20px 0; font-size: 16px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        label { display: block; text-align: left; font-weight: 600; margin-top: 10px; }
+        button { background: #007bff; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        button.save { background: #28a745; margin-top: 10px; }
+        #status { margin-bottom: 20px; font-weight: bold; color: #666; padding: 10px; background: #e9ecef; border-radius: 6px; white-space: pre-wrap;}
+        .error { color: #dc3545; background: #f8d7da !important; border: 1px solid #f5c6cb; }
+        .success { color: #28a745; background: #d4edda !important; border: 1px solid #c3e6cb; }
     </style>
 </head>
 <body>
 
-    <h1>Remote Konfigurator</h1>
-    <p id="status">Nicht verbunden</p>
-    <button id="btnConnect" onclick="connectBLE()">Verbinden & Einstellen</button>
+    <div class="card">
+        <h1>🛠️ Remote Config</h1>
+        <p id="status">Bereit.</p>
+        <button id="btnConnect">Verbinden & Einstellen</button>
+    </div>
 
-    <div id="controls" style="display:none;">
-        <div class="card">
-            <h3>Taste 1 (Next)</h3>
-            <label>Modifier:</label>
-            <select id="modNext">
-                <option value="128">STRG (Left Ctrl)</option>
-                <option value="129">SHIFT (Left Shift)</option>
-                <option value="130">ALT (Left Alt)</option>
-                <option value="0">Keiner</option>
-            </select>
-            <label>Key Code:</label>
-            <input type="number" id="codeNext" value="217" placeholder="z.B. 217">
-            <small>217=PageDown, 215=Pfeil Rechts</small>
-        </div>
+    <div id="controls" class="card" style="display:none;">
+        <h3>Taste 1 (Next)</h3>
+        <label>Modifier:</label>
+        <select id="modNext">
+            <option value="128">STRG (Left Ctrl)</option>
+            <option value="129">SHIFT (Left Shift)</option>
+            <option value="130">ALT (Left Alt)</option>
+            <option value="0">Keiner</option>
+        </select>
+        <label>Key Code:</label>
+        <input type="number" id="codeNext" value="217">
 
-        <div class="card">
-            <h3>Taste 2 (Prev)</h3>
-            <label>Modifier:</label>
-            <select id="modPrev">
-                <option value="128">STRG (Left Ctrl)</option>
-                <option value="129">SHIFT (Left Shift)</option>
-                <option value="130">ALT (Left Alt)</option>
-                <option value="0">Keiner</option>
-            </select>
-            <label>Key Code:</label>
-            <input type="number" id="codePrev" value="214" placeholder="z.B. 214">
-            <small>214=PageUp, 216=Pfeil Links</small>
-        </div>
+        <h3>Taste 2 (Prev)</h3>
+        <label>Modifier:</label>
+        <select id="modPrev">
+            <option value="128">STRG (Left Ctrl)</option>
+            <option value="129">SHIFT (Left Shift)</option>
+            <option value="130">ALT (Left Alt)</option>
+            <option value="0">Keiner</option>
+        </select>
+        <label>Key Code:</label>
+        <input type="number" id="codePrev" value="214">
 
-        <button class="save" onclick="saveConfig()">Speichern</button>
+        <button class="save" id="btnSave">💾 Speichern</button>
     </div>
 
     <script>
+        // UUIDs
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHAR_UUID    = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        
         let device, server, service, characteristic;
+        const statusEl = document.getElementById('status');
 
-        async function connectBLE() {
+        document.getElementById('btnConnect').addEventListener('click', async () => {
             try {
-                document.getElementById('status').innerText = "Suche Gerät...";
+                statusEl.innerText = "Suche...";
+                statusEl.classList.remove("error", "success");
+                
+                // HYBRID-STRATEGIE: Wir suchen nach Name, fordern aber den Service als 'optional' an.
+                // Das umgeht oft das Problem, dass der Service nicht im Advertising-Paket steht.
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'OneNote Remote' }],
+                    filters: [{ name: 'OneNote Switch' }],
                     optionalServices: [SERVICE_UUID]
                 });
 
-                device.addEventListener('gattserverdisconnected', onDisconnected);
-                document.getElementById('status').innerText = "Verbinde...";
+                device.addEventListener('gattserverdisconnected', () => {
+                    statusEl.innerText = "Getrennt.";
+                    document.getElementById('controls').style.display = 'none';
+                    document.getElementById('btnConnect').style.display = 'inline-block';
+                });
                 
+                statusEl.innerText = "Verbinde...";
                 server = await device.gatt.connect();
-                service = await server.getPrimaryService(SERVICE_UUID);
+                
+                // Kurze Pause für Windows Service Discovery
+                statusEl.innerText = "Warte auf Windows...";
+                await new Promise(r => setTimeout(r, 1000));
+
+                statusEl.innerText = "Suche Config Service...";
+                try {
+                    service = await server.getPrimaryService(SERVICE_UUID);
+                } catch(e) {
+                    throw new Error("Dienst nicht gefunden! Bitte Gerät in Windows entfernen und PC-Bluetooth neu starten.");
+                }
+                
+                statusEl.innerText = "Lade Charakteristik...";
                 characteristic = await service.getCharacteristic(CHAR_UUID);
 
-                document.getElementById('status').innerText = "Verbunden!";
+                statusEl.innerText = "✅ Verbunden!";
+                statusEl.classList.add("success");
+                
                 document.getElementById('controls').style.display = 'block';
                 document.getElementById('btnConnect').style.display = 'none';
+                
             } catch (error) {
                 console.error(error);
-                document.getElementById('status').innerText = "Fehler: " + error;
+                statusEl.innerText = "Fehler: " + error.message;
+                statusEl.classList.add("error");
             }
-        }
+        });
 
-        async function saveConfig() {
+        document.getElementById('btnSave').addEventListener('click', async () => {
             if (!characteristic) return;
-            
-            const modN = document.getElementById('modNext').value;
-            const codeN = document.getElementById('codeNext').value;
-            const modP = document.getElementById('modPrev').value;
-            const codeP = document.getElementById('codePrev').value;
-
-            const cmdNext = `N:${modN}:${codeN}`;
-            const cmdPrev = `P:${modP}:${codeP}`;
+            const cmdNext = `N:${document.getElementById('modNext').value}:${document.getElementById('codeNext').value}`;
+            const cmdPrev = `P:${document.getElementById('modPrev').value}:${document.getElementById('codePrev').value}`;
 
             try {
-                // Sende Next Config
                 let encoder = new TextEncoder('utf-8');
                 await characteristic.writeValue(encoder.encode(cmdNext));
-                await new Promise(r => setTimeout(r, 200)); // Kurz warten
-                // Sende Prev Config
+                await new Promise(r => setTimeout(r, 300));
                 await characteristic.writeValue(encoder.encode(cmdPrev));
-                alert("Gespeichert! Die Fernbedienung nutzt nun die neuen Tasten.");
+                alert("Gespeichert! ESP startet neu.");
             } catch (e) {
-                alert("Fehler beim Senden: " + e);
+                alert("Fehler beim Speichern: " + e);
             }
-        }
-
-        function onDisconnected() {
-            document.getElementById('status').innerText = "Getrennt";
-            document.getElementById('controls').style.display = 'none';
-            document.getElementById('btnConnect').style.display = 'inline-block';
-        }
+        });
     </script>
 </body>
 </html>
