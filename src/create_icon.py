@@ -1,3 +1,10 @@
+#------------------------------------------------------------------------------------------------------------------
+# Programm to create a custom icon for the "Remote-Switch" application
+# if You want to use this script, make sure You have the Pillow library installed:
+# pip install Pillow
+#------------------------------------------------------------------------------------------------------------------
+# If You want to use a cutom icon feel free to replace the generated icon.ico in the src and dist folder
+#------------------------------------------------------------------------------------------------------------------
 from PIL import Image, ImageDraw, ImageFont
 import os
 import sys

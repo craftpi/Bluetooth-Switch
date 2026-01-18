@@ -10,3 +10,4 @@ remote_config.json
 build/
 dist/
 OneNoteRemote.spec
+Remote-Switch.spec
