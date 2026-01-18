@@ -65,7 +65,7 @@ void setup() {
   analogReadResolution(12);
 
   // NimBLE Init
-  NimBLEDevice::init("OneNote Remote");
+  NimBLEDevice::init("Remote-Switch");
   
   // WICHTIG: Security Settings für Windows Kompatibilität
   NimBLEDevice::setSecurityAuth(false, false, false);
@@ -92,7 +92,7 @@ void setup() {
   pAdvertising->addServiceUUID(SERVICE_UUID);
   
   NimBLEAdvertisementData scanResponseData;
-  scanResponseData.setName("OneNote Remote"); 
+  scanResponseData.setName("Remote-Switch"); 
   pAdvertising->setScanResponseData(scanResponseData);
   
   pAdvertising->start();

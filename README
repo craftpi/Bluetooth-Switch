@@ -1,0 +1,139 @@
+📱 OneNote Remote Switch (AI Powered)
+
+Ein intelligenter Bluetooth-Fernauslöser für OneNote (und andere Windows-Anwendungen), basierend auf einem ESP32 und einer Python-Bridge-App.
+
+Dieses Projekt verwandelt einen ESP32 in einen energieeffizienten Bluetooth-Controller. Anders als herkömmliche Bluetooth-Tastaturen nutzt dieses System eine "Smart Host, Dumb Device" Architektur: Der ESP32 sendet lediglich rohe Signale, während eine begleitende Python-App auf dem PC die Logik übernimmt.
+
+✨ Features
+
+🔋 Extrem energiesparend: Nutzt BLE (Bluetooth Low Energy) für maximale Akkulaufzeit.
+
+🤖 AI-Konfiguration: Integrierte Google Gemini KI. Sag der App einfach "Nächste Folie" oder "Musik pausieren", und sie konfiguriert die Tasten automatisch.
+
+🚀 Autostart: Die Windows-App kann sich automatisch in den Autostart eintragen und läuft minimiert im Hintergrund.
+
+⚡ Blitzschnelle Verbindung: Kein Pairing-Code nötig. App starten -> ESP einschalten -> Verbunden.
+
+📊 Akku-Überwachung: Zeigt den Akkustand des ESP32 live in der Windows-App an.
+
+🛠️ Hardware
+
+Benötigte Komponenten
+
+ESP32 Board (z.B. Wemos D1 Mini ESP32)
+
+2x Taster (Buttons)
+
+LiPo Akku (optional)
+
+Verbindungskabel
+
+Pin-Belegung
+
+Die Standard-Konfiguration im Code (src/main.cpp) ist:
+
+Komponente
+
+ESP32 Pin
+
+Beschreibung
+
+Taste Next
+
+GPIO 25
+
+Schaltet gegen GND (Input Pullup)
+
+Taste Prev
+
+GPIO 32
+
+Schaltet gegen GND (Input Pullup)
+
+Akku Messung
+
+GPIO 36
+
+Analog Input (VP)
+
+Status LED
+
+GPIO 2
+
+Blaue Onboard LED
+
+Hinweis: Die Pins können in der src/main.cpp leicht angepasst werden.
+
+📦 Installation
+
+1. ESP32 Firmware flashen
+
+Das Projekt nutzt PlatformIO.
+
+Öffne den Ordner in VS Code mit der PlatformIO Extension.
+
+Verbinde deinen ESP32 per USB.
+
+Drücke auf Upload (Pfeil nach rechts in der unteren Leiste).
+
+2. Windows App einrichten
+
+Du hast zwei Möglichkeiten: Das Python-Skript direkt ausführen oder eine eigenständige EXE erstellen.
+
+Voraussetzungen
+
+Python 3.x installiert (bei der Installation "Add Python to PATH" anhaken!).
+
+Installation der Abhängigkeiten
+
+Öffne ein Terminal im src Ordner und führe aus:
+
+pip install -r requirements.txt
+
+
+App starten
+
+python bridge_app.py
+
+
+3. Exe-Datei erstellen (Optional)
+
+Um eine ausführbare Datei zu erstellen, die kein Python benötigt:
+
+pip install pyinstaller
+pyinstaller --noconsole --onefile --icon="icon.ico" --name "Remote-Switch" bridge_app.py
+
+
+Die fertige Remote-Switch.exe liegt dann im Ordner dist.
+
+📖 Bedienungsanleitung
+
+Starte die Remote-Switch App auf deinem PC.
+
+Schalte den ESP32 ein.
+
+Die App findet den ESP automatisch (Status wechselt auf Grün: "Verbunden").
+
+Konfiguration:
+
+Gib deinen Google Gemini API Key ein (für die AI-Funktion).
+
+Klicke auf "✨ KI Config Taste 1".
+
+Gib einen Befehl ein, z.B. "Seite runter scrollen" oder "Screenshot machen".
+
+Die KI setzt den passenden Hotkey für dich.
+
+Aktiviere bei Bedarf "Automatisch mit Windows starten".
+
+🔧 Troubleshooting
+
+ESP verbindet nicht: Entferne "OneNote Remote" aus den Windows Bluetooth-Einstellungen und starte Bluetooth neu.
+
+LED leuchtet dauerhaft: Prüfe die Verkabelung der Taster. Die Firmware erwartet, dass Taster beim Drücken den Pin auf GND ziehen (Active Low).
+
+AI Fehler: Stelle sicher, dass google-genai installiert ist und dein API Key gültig ist.
+
+📄 Lizenz
+
+Open Source. Fühle dich frei, den Code für deine Zwecke anzupassen!
