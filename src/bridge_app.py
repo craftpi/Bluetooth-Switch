@@ -5,11 +5,11 @@ from tkinter import ttk, messagebox, simpledialog
 import json
 import os
 import sys
-import winreg # Für Autostart-Eintrag
+import winreg 
 from bleak import BleakScanner, BleakClient
 import keyboard
 
-# --- IMPORT FIX ---
+
 HAS_AI = False
 try:
     from google import genai # type: ignore
@@ -36,8 +36,8 @@ CONFIG_FILE = os.path.join(APP_DIR, "remote_config.json")
 class BluetoothRemoteApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OneNote Remote AI Bridge")
-        self.root.geometry("500x650") # Etwas höher für Autostart Checkbox
+        self.root.title("Remote-Switch")
+        self.root.geometry("500x650") 
         
         self.client = None
         self.connected = False
@@ -112,14 +112,14 @@ class BluetoothRemoteApp:
     def is_autostart_enabled(self):
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
-            winreg.QueryValueEx(key, "OneNoteRemoteBridge")
+            winreg.QueryValueEx(key, "Remote-Switch")
             key.Close()
             return True
         except FileNotFoundError:
             return False
 
     def toggle_autostart(self):
-        app_name = "OneNoteRemoteBridge"
+        app_name = "Remote-Switch"
         
         # Ermittle Pfad zur Exe oder zum Skript
         exe_path = sys.executable
@@ -146,7 +146,6 @@ class BluetoothRemoteApp:
         except Exception as e:
             messagebox.showerror("Fehler", f"Konnte Registry nicht ändern: {e}")
             self.var_autostart.set(not self.var_autostart.get())
-
 
     def load_config(self):
         if os.path.exists(CONFIG_FILE):
@@ -261,9 +260,9 @@ class BluetoothRemoteApp:
 
     async def ble_main(self):
         while True:
-            self.update_status("Scanne nach OneNote Remote...", "orange")
+            self.update_status("Scanne nach Remote-Switch...", "orange")
             try:
-                device = await BleakScanner.find_device_by_name("OneNote Remote", timeout=5.0) # type: ignore
+                device = await BleakScanner.find_device_by_name("Remote-Switch", timeout=5.0) # type: ignore
                 
                 if device:
                     self.update_status(f"Gefunden! Verbinde...", "blue")
