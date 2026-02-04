@@ -11,3 +11,4 @@ build/
 dist/
 OneNoteRemote.spec
 Remote-Switch.spec
+installer_output/

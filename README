@@ -83,13 +83,29 @@ python bridge_app.py
 Um eine ausführbare Datei zu erstellen, die kein Python benötigt:
 
 pip install pyinstaller
-pyinstaller --noconsole --onefile --icon="icon.ico" --name "Remote-Switch" bridge_app.py
+pyinstaller --noconsole --onefile --icon="src/icon.ico" --add-data "src/icon.ico;." --name "Remote-Switch" src/bridge_app.py
 
+Die fertige EXE liegt dann in: `dist/Remote-Switch.exe`
 
+4. 📦 Installer erstellen mit Inno Setup 6
 
-Die fertige Remote-Switch.exe liegt dann im Ordner dist.
+Inno Setup installieren
+Download: https://jrsoftware.org/isdl.php
 
-📖 Bedienungsanleitung
+Installer bauen
+- Öffne `installer_setup.iss` mit Inno Setup Compiler-
+- Klicke auf **Build** → **Compile**
+- Fertiger Installer liegt in: `installer_output/Remote-Switch-Setup.exe`
+
+## 🚀 Quick-Setup (Ohne Installer)
+
+Falls kein Installer gewünscht:
+1. EXE bauen (Schritt 1)
+2. `dist/Remote-Switch.exe` kopieren wohin du willst
+3. Beim ersten Start wird das Icon automatisch extrahiert
+4. Autostart kann in der App aktiviert werden
+
+5. 📖 Bedienungsanleitung
 
 Starte die Remote-Switch App auf deinem PC.
 

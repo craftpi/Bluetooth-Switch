@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import winreg 
+import shutil
 from bleak import BleakScanner, BleakClient
 import keyboard
 import pystray
@@ -30,11 +31,35 @@ CHAR_BATTERY_UUID = "12345678-1234-1234-1234-1234567890ad"
 if getattr(sys, 'frozen', False):
     # Wenn als EXE ausgeführt
     APP_DIR = os.path.dirname(sys.executable)
+    # PyInstaller extrahiert Dateien nach _MEIPASS
+    BUNDLE_DIR = sys._MEIPASS
 else:
     # Wenn als Skript ausgeführt
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    BUNDLE_DIR = APP_DIR
 
 CONFIG_FILE = os.path.join(APP_DIR, "remote_config.json")
+
+# Extrahiere Icon beim ersten Start (nur bei EXE)
+def extract_icon():
+    """Extrahiert das Icon aus der EXE ins APP_DIR beim ersten Start"""
+    icon_dest = os.path.join(APP_DIR, "icon.ico")
+    
+    # Wenn Icon bereits existiert, nichts tun
+    if os.path.exists(icon_dest):
+        return
+    
+    # Icon aus Bundle kopieren
+    icon_source = os.path.join(BUNDLE_DIR, "icon.ico")
+    if os.path.exists(icon_source):
+        try:
+            shutil.copy2(icon_source, icon_dest)
+            print(f"Icon extrahiert nach: {icon_dest}")
+        except Exception as e:
+            print(f"Icon Extraktion fehlgeschlagen: {e}")
+
+# Beim Start Icon extrahieren
+extract_icon()
 
 class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
