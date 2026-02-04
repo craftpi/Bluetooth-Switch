@@ -39,6 +39,10 @@ class BluetoothRemoteApp:
         self.root.title("Remote-Switch")
         self.root.geometry("500x650") 
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
+        self.root.minsize(500, 650)
+        self.root.minimize()  # Start minimiert
+        self.root.after(100, lambda: self.root.iconify()) # Minimiere nach kurzer Verzögerung
+        self.root.protocol("WM_DELETE_WINDOW", self.root.iconify)  # Schließe Fenster minimizer
         
         self.client = None
         self.connected = False
