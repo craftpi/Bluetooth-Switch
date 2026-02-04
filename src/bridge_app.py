@@ -38,6 +38,7 @@ class BluetoothRemoteApp:
         self.root = root
         self.root.title("Remote-Switch")
         self.root.geometry("500x650") 
+        self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
         
         self.client = None
         self.connected = False
