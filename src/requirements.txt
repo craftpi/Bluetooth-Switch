@@ -1,3 +1,5 @@
 bleak
 keyboard
 google-genai
+pystray
+Pillow

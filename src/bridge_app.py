@@ -5,9 +5,12 @@ from tkinter import ttk, messagebox, simpledialog
 import json
 import os
 import sys
+import time
 import winreg 
 from bleak import BleakScanner, BleakClient
 import keyboard
+import pystray
+from PIL import Image
 
 
 HAS_AI = False
@@ -34,19 +37,20 @@ else:
 CONFIG_FILE = os.path.join(APP_DIR, "remote_config.json")
 
 class BluetoothRemoteApp:
-    def __init__(self, root):
+    def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title("Remote-Switch")
         self.root.geometry("500x650") 
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
-        self.root.minsize(500, 650)
-        self.root.minimize()  # Start minimiert
-        self.root.after(100, lambda: self.root.iconify()) # Minimiere nach kurzer Verzögerung
-        self.root.protocol("WM_DELETE_WINDOW", self.root.iconify)  # Schließe Fenster minimizer
         
         self.client = None
         self.connected = False
         self.battery_level = 0
+        self.startup_delay = startup_delay
+        self.tray_icon = None
+        
+        # Fenster-Protokoll für Schließen (verstecken statt beenden)
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         
         # Default Config
         self.config = {
@@ -57,6 +61,13 @@ class BluetoothRemoteApp:
         self.load_config()
         
         self.setup_ui()
+        
+        # System Tray Icon erstellen
+        self.setup_tray_icon()
+        
+        # Bei Autostart: Fenster verstecken
+        if start_hidden:
+            self.root.after(100, self.hide_window)
         
         # Start BLE Loop
         self.loop = asyncio.new_event_loop()
@@ -264,6 +275,24 @@ class BluetoothRemoteApp:
         self.loop.run_until_complete(self.ble_main())
 
     async def ble_main(self):
+        # Beim Autostart: Warte bis Bluetooth bereit ist
+        if self.startup_delay > 0:
+            self.update_status(f"Warte {self.startup_delay}s auf Bluetooth...", "orange")
+            await asyncio.sleep(self.startup_delay)
+        
+        # Warte bis BLE-Scanner verfügbar ist (max 30s)
+        for attempt in range(6):
+            try:
+                # Test ob Scanner funktioniert
+                await BleakScanner.discover(timeout=0.5) # type: ignore
+                break  # Scanner funktioniert!
+            except Exception as e:
+                if attempt < 5:
+                    self.update_status(f"Bluetooth noch nicht bereit... ({attempt+1}/6)", "orange")
+                    await asyncio.sleep(5)
+                else:
+                    self.update_status("⚠️ Bluetooth-Problem! Retry...", "red")
+        
         while True:
             self.update_status("Scanne nach Remote-Switch...", "orange")
             try:
@@ -324,7 +353,70 @@ class BluetoothRemoteApp:
         except Exception:
             pass
 
+    # --- SYSTEM TRAY FUNKTIONEN ---
+    def setup_tray_icon(self):
+        """Erstellt das System Tray Icon"""
+        try:
+            # Lade Icon aus .ico Datei oder erstelle ein einfaches
+            icon_path = os.path.join(APP_DIR, "icon.ico")
+            if os.path.exists(icon_path):
+                image = Image.open(icon_path)
+            else:
+                # Fallback: Erstelle einfaches Icon
+                image = Image.new('RGB', (64, 64), color='blue')
+            
+            # Tray Menu
+            menu = pystray.Menu(
+                pystray.MenuItem("Einstellungen öffnen", self.show_window, default=True),  # Default = Doppelklick
+                pystray.MenuItem("Beenden", self.quit_app)
+            )
+            
+            # Erstelle Tray Icon
+            self.tray_icon = pystray.Icon(
+                "Remote-Switch",
+                image,
+                "Remote-Switch",
+                menu,
+                on_activated=self.show_window  # Doppelklick öffnet Fenster
+            )
+            
+            # Starte Tray Icon in separatem Thread
+            tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            tray_thread.start()
+            
+        except Exception as e:
+            print(f"Tray Icon Fehler: {e}")
+    
+    def show_window(self, icon=None, item=None):
+        """Zeigt das Hauptfenster"""
+        self.root.after(0, self._show_window)
+    
+    def _show_window(self):
+        """Interne Methode zum Anzeigen (muss im Tkinter-Thread laufen)"""
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+    
+    def hide_window(self):
+        """Versteckt das Fenster (läuft weiter im Tray)"""
+        self.root.withdraw()
+    
+    def quit_app(self, icon=None, item=None):
+        """Beendet die App komplett"""
+        try:
+            if self.tray_icon:
+                self.tray_icon.stop()
+            self.root.after(0, self.root.destroy)  # Sauberes Beenden im Tkinter-Thread
+        except Exception:
+            pass
+
 if __name__ == "__main__":
+    # Erkenne ob via Autostart gestartet (weniger als 3 Min nach Boot)
+    uptime_sec = time.time() - os.path.getmtime("C:\\Windows\\System32")
+    is_autostart = uptime_sec < 180  # < 3 Minuten nach Boot
+    
     root = tk.Tk()
-    app = BluetoothRemoteApp(root)
+    # Bei Autostart: 8 Sekunden warten auf Bluetooth + versteckt starten
+    startup_delay = 8 if is_autostart else 0
+    app = BluetoothRemoteApp(root, startup_delay=startup_delay, start_hidden=is_autostart)
     root.mainloop()
