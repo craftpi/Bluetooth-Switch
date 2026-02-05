@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import ctypes
 import winreg 
 import shutil
 from bleak import BleakScanner, BleakClient
@@ -436,6 +437,13 @@ class BluetoothRemoteApp:
             pass
 
 if __name__ == "__main__":
+    # Single-instance guard (Windows mutex)
+    mutex_name = "Global\\Remote-Switch-SingleInstance"
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, True, mutex_name)
+    if ctypes.windll.kernel32.GetLastError() == 183:
+        messagebox.showinfo("Remote-Switch", "Die App läuft bereits.")
+        sys.exit(0)
+
     # Erkenne ob via Autostart gestartet (weniger als 3 Min nach Boot)
     uptime_sec = time.time() - os.path.getmtime("C:\\Windows\\System32")
     is_autostart = uptime_sec < 180  # < 3 Minuten nach Boot
