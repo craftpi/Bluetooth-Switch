@@ -81,7 +81,8 @@ class BluetoothRemoteApp:
         self.config = {
             "api_key": "",
             "btn1_action": "pagedown", 
-            "btn2_action": "pageup"    
+            "btn2_action": "pageup",   
+            "btn3_action": "print screen" 
         }
         self.load_config()
         
@@ -133,6 +134,15 @@ class BluetoothRemoteApp:
         btn_ai_2.pack(fill="x", pady=(0, 10))
         
         tk.Button(frame_settings, text="💾 Speichern", command=self.save_config, bg="#d4edda").pack(fill="x", pady=10)
+
+        # Button 3 (Beide)
+        tk.Label(frame_settings, text="Beide Tasten (z.B. Screenshot):").pack(anchor="w")
+        self.entry_btn3 = tk.Entry(frame_settings)
+        self.entry_btn3.insert(0, self.config.get("btn3_action", "print screen"))
+        self.entry_btn3.pack(fill="x", pady=(0, 5))
+
+        btn_ai_3 = tk.Button(frame_settings, text="✨ KI Config Beide Tasten", command=lambda: self.ask_ai(3), bg="#e0e7ff")
+        btn_ai_3.pack(fill="x", pady=(0, 10))
 
         # API Key
         frame_api = tk.LabelFrame(self.root, text="Google Gemini API Key", padx=10, pady=10)
@@ -199,6 +209,7 @@ class BluetoothRemoteApp:
     def save_config(self):
         self.config["btn1_action"] = self.entry_btn1.get()
         self.config["btn2_action"] = self.entry_btn2.get()
+        self.config["btn3_action"] = self.entry_btn3.get()
         self.config["api_key"] = self.entry_api.get()
         with open(CONFIG_FILE, "w") as f:
             json.dump(self.config, f)
@@ -285,9 +296,12 @@ class BluetoothRemoteApp:
             if btn_num == 1:
                 self.entry_btn1.delete(0, tk.END)
                 self.entry_btn1.insert(0, key_code)
-            else:
+            elif btn_num == 2:
                 self.entry_btn2.delete(0, tk.END)
                 self.entry_btn2.insert(0, key_code)
+            else:
+                self.entry_btn3.delete(0, tk.END)
+                self.entry_btn3.insert(0, key_code)
                 
             self.save_config()
             messagebox.showinfo("Erfolg", f"Taste konfiguriert auf: {key_code}\n(Modell: {used_model})")
@@ -358,6 +372,7 @@ class BluetoothRemoteApp:
             action = ""
             if val == 1: action = self.config["btn1_action"]
             elif val == 2: action = self.config["btn2_action"]
+            elif val == 3: action = self.config.get("btn3_action", "")
                 
             print(f"Trigger: {action}")
             if action: keyboard.send(action)

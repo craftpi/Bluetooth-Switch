@@ -112,7 +112,18 @@ void loop() {
       }
 
       // 1. Tastenabfrage
-      if (digitalRead(buttonNextPin) == LOW) {
+      bool nextPressed = (digitalRead(buttonNextPin) == LOW);
+      bool prevPressed = (digitalRead(buttonPrevPin) == LOW);
+
+      if (nextPressed && prevPressed) {
+          Serial.println("Beide Tasten gedrückt");
+          uint8_t val = 3; 
+          pCharButton->setValue(&val, 1);
+          pCharButton->notify();
+          blinkFeedback(); 
+          delay(400); // Längeres Delay verhindert versehentliche Einzelklicks     
+      }
+      else if (nextPressed) {
           Serial.println("Taste NEXT (25) gedrückt");
           uint8_t val = 1; 
           pCharButton->setValue(&val, 1);
@@ -120,8 +131,7 @@ void loop() {
           blinkFeedback(); 
           delay(250);      
       }
-      
-      if (digitalRead(buttonPrevPin) == LOW) {
+      else if (prevPressed) {
           Serial.println("Taste PREV (32) gedrückt");
           uint8_t val = 2; 
           pCharButton->setValue(&val, 1);
