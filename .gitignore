@@ -13,3 +13,4 @@ OneNoteRemote.spec
 Remote-Switch.spec
 installer_output/
 Remote-Switch-Cert.pfx
+installer_setup.iss
