@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <NimBLEDevice.h>
-#include <WiFi.h> 
 
 // --- KONFIGURATION ---
 #define SERVICE_UUID        "12345678-1234-1234-1234-1234567890ab"
@@ -21,13 +20,13 @@ NimBLECharacteristic* pCharButton = nullptr;
 NimBLECharacteristic* pCharBattery = nullptr;
 bool deviceConnected = false;
 
-// --- CALLBACKS ---
+// --- CALLBACKS FÜR NIMBLE 2.5.2 ---
 class MyServerCallbacks: public NimBLEServerCallbacks {
-    void onConnect(NimBLEServer* pServer) {
+    void onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo) override {
         deviceConnected = true;
         Serial.println("CALLBACK: Gerät verbunden!");
-    };
-    void onDisconnect(NimBLEServer* pServer) {
+    }
+    void onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo, int reason) override {
         deviceConnected = false;
         Serial.println("CALLBACK: Gerät getrennt -> Starte Advertising...");
         NimBLEDevice::startAdvertising();
@@ -55,7 +54,6 @@ void blinkFeedback() {
 
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_OFF); 
   
   pinMode(buttonNextPin, INPUT_PULLUP);
   pinMode(buttonPrevPin, INPUT_PULLUP);
@@ -86,8 +84,6 @@ void setup() {
                       NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY
                   );
 
-  pService->start();
-
   NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   
@@ -111,33 +107,42 @@ void loop() {
           Serial.println("LOOP-CHECK: Verbindung erkannt!");
       }
 
-      // 1. Tastenabfrage
+      // 1. Initiale Tastenabfrage
       bool nextPressed = (digitalRead(buttonNextPin) == LOW);
       bool prevPressed = (digitalRead(buttonPrevPin) == LOW);
 
-      if (nextPressed && prevPressed) {
-          Serial.println("Beide Tasten gedrückt");
-          uint8_t val = 3; 
-          pCharButton->setValue(&val, 1);
-          pCharButton->notify();
-          blinkFeedback(); 
-          delay(400); // Längeres Delay verhindert versehentliche Einzelklicks     
-      }
-      else if (nextPressed) {
-          Serial.println("Taste NEXT (25) gedrückt");
-          uint8_t val = 1; 
-          pCharButton->setValue(&val, 1);
-          pCharButton->notify();
-          blinkFeedback(); 
-          delay(250);      
-      }
-      else if (prevPressed) {
-          Serial.println("Taste PREV (32) gedrückt");
-          uint8_t val = 2; 
-          pCharButton->setValue(&val, 1);
-          pCharButton->notify();
-          blinkFeedback(); 
-          delay(250);     
+      // Wenn IRGENDEINE Taste gedrückt wurde, geben wir ein 50ms Toleranz-Fenster
+      if (nextPressed || prevPressed) {
+          delay(50); // Kurz warten für menschliche Ungenauigkeit
+          
+          // Nach der Wartezeit noch einmal final prüfen
+          nextPressed = (digitalRead(buttonNextPin) == LOW);
+          prevPressed = (digitalRead(buttonPrevPin) == LOW);
+
+          if (nextPressed && prevPressed) {
+              Serial.println("Beide Tasten gedrückt");
+              uint8_t val = 3; 
+              pCharButton->setValue(&val, 1);
+              pCharButton->notify();
+              blinkFeedback(); 
+              delay(400); // Längeres Delay verhindert versehentliche Einzelklicks     
+          }
+          else if (nextPressed) {
+              Serial.println("Taste NEXT (25) gedrückt");
+              uint8_t val = 1; 
+              pCharButton->setValue(&val, 1);
+              pCharButton->notify();
+              blinkFeedback(); 
+              delay(250);      
+          }
+          else if (prevPressed) {
+              Serial.println("Taste PREV (32) gedrückt");
+              uint8_t val = 2; 
+              pCharButton->setValue(&val, 1);
+              pCharButton->notify();
+              blinkFeedback(); 
+              delay(250);     
+          }
       }
 
       // 2. Akku Senden (Timer)
@@ -145,7 +150,6 @@ void loop() {
       if (millis() - lastBat > BATTERY_INTERVAL) {
           lastBat = millis();
           uint8_t level = getBatteryPercentage();
-          // Serial.printf("Sende Akku: %d%%\n", level); // Optionales Debugging
           pCharBattery->setValue(&level, 1);
           pCharBattery->notify();
       }
