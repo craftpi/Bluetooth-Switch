@@ -1,3 +1,4 @@
+import ctypes
 import asyncio
 import threading
 import tkinter as tk
@@ -13,6 +14,11 @@ import keyboard
 import pystray
 from PIL import Image
 
+mutex_name = "RemoteSwitchAppMutex"
+mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+if ctypes.windll.kernel32.GetLastError() == 183: # ERROR_ALREADY_EXISTS
+    print("App läuft bereits!")
+    sys.exit(0)
 
 HAS_AI = False
 try:
