@@ -122,9 +122,12 @@ class BluetoothRemoteApp:
         self.thread.start()
 
     def setup_ui(self):
-        # Styling anpassen (Macht den Speichern-Button schön groß und fett)
+        # Styling definieren
         style = ttk.Style()
+        # Speichern-Button (Groß und fett)
         style.configure("Accent.TButton", font=("Segoe UI Variable Display", 13, "bold"), padding=10)
+        # NEU: Eigener Style für die KI-Buttons, damit diese größer sind
+        style.configure("KI.TButton", font=("Segoe UI Variable Text", 11, "bold"), padding=5)
 
         # Transparenter Container für Mica-Effekt
         container = ttk.Frame(self.root, padding=25)
@@ -144,8 +147,8 @@ class BluetoothRemoteApp:
         self.lbl_battery = ttk.Label(container, text="🔋 Akku: --%", font=("Segoe UI Variable Display", 18))
         self.lbl_battery.pack(pady=(10, 25))
 
-        # --- NEU: Große Überschrift für Tasten Konfiguration ---
-        lbl_settings_title = ttk.Label(container, text=" Tasten Konfiguration ", font=("Segoe UI Variable Display", 13, "bold"))
+        # --- ANGEPASST: Überschrift wieder etwas kleiner (Größe 11 statt 13) ---
+        lbl_settings_title = ttk.Label(container, text=" Tasten Konfiguration ", font=("Segoe UI Variable Display", 11, "bold"))
         frame_settings = ttk.LabelFrame(container, labelwidget=lbl_settings_title, padding=15)
         frame_settings.pack(fill="x", pady=10)
 
@@ -153,14 +156,15 @@ class BluetoothRemoteApp:
             row = ttk.Frame(parent)
             row.pack(fill="x", pady=8)
             
-            # Label und Entry auf Schriftgröße 13
+            # Label und Entry bleiben auf 13 für gute Lesbarkeit
             ttk.Label(row, text=label_text, font=("Segoe UI Variable Text", 13), width=15).pack(side="left", anchor="w")
             
             entry = ttk.Entry(row, font=("Segoe UI Variable Text", 13))
             entry.insert(0, default_val)
             entry.pack(side="left", padx=10, expand=True, fill="x")
             
-            ai_btn = ttk.Button(row, text="✨ KI Config", command=lambda: self.ask_ai(btn_num))
+            # NEU: Der KI-Button nutzt nun den größeren Style "KI.TButton"
+            ai_btn = ttk.Button(row, text="✨ KI Config", command=lambda: self.ask_ai(btn_num), style="KI.TButton")
             ai_btn.pack(side="right")
             return entry
 
@@ -168,12 +172,12 @@ class BluetoothRemoteApp:
         self.entry_btn2 = create_key_row(frame_settings, "Taste 2 (Prev):", self.config["btn2_action"], 2)
         self.entry_btn3 = create_key_row(frame_settings, "Beide Tasten:", self.config.get("btn3_action", "print screen"), 3)
 
-        # Speichern mit "Accent" Style (übernimmt jetzt die große Schrift von oben)
+        # Speichern-Button
         btn_save = ttk.Button(frame_settings, text="💾 Speichern", command=self.save_config, style="Accent.TButton")
         btn_save.pack(fill="x", pady=(15, 0))
 
-        # --- NEU: Große Überschrift für API Key ---
-        lbl_api_title = ttk.Label(container, text=" Google Gemini API Key ", font=("Segoe UI Variable Display", 13, "bold"))
+        # --- ANGEPASST: API Key Überschrift etwas kleiner (Größe 11 statt 13) ---
+        lbl_api_title = ttk.Label(container, text=" Google Gemini API Key ", font=("Segoe UI Variable Display", 11, "bold"))
         frame_api = ttk.LabelFrame(container, labelwidget=lbl_api_title, padding=15)
         frame_api.pack(fill="x", pady=15)
         
@@ -187,7 +191,7 @@ class BluetoothRemoteApp:
         cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten", 
                                       variable=self.var_autostart, command=self.toggle_autostart, style=switch_style)
         cb_autostart.pack(side="bottom", pady=20)
-
+        
     def is_autostart_enabled(self):
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
