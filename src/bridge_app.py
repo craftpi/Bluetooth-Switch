@@ -119,7 +119,9 @@ class BluetoothRemoteApp:
         def create_key_row(parent, label_text, default_val, btn_num):
             row = tk.Frame(parent)
             row.pack(fill="x", padx=15, pady=10)
-            ttk.Label(row, text=label_text, font=("Segoe UI", 10)).pack(side="left", anchor="w", width=15)
+            
+            # KORREKTUR: width=15 gehört in das Label, nicht in pack()
+            ttk.Label(row, text=label_text, font=("Segoe UI", 10), width=15).pack(side="left", anchor="w")
             
             entry = ttk.Entry(row, font=("Segoe UI", 10))
             entry.insert(0, default_val)
