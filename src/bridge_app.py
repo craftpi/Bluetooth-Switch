@@ -1,4 +1,15 @@
 import ctypes
+
+# --- DPI AWARENESS FIX ---
+# Verhindert verschwommene Schrift auf hochauflösenden Displays (wie Laptops)
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
 import asyncio
 import threading
 import tkinter as tk
@@ -14,9 +25,22 @@ import keyboard
 import pystray
 from PIL import Image
 
+# --- MODERNE WIN 11 THEMES ---
+try:
+    import sv_ttk
+    HAS_SV_TTK = True
+except ImportError:
+    HAS_SV_TTK = False
+
+try:
+    import pywinstyles
+    HAS_MICA = True
+except ImportError:
+    HAS_MICA = False
+
 mutex_name = "RemoteSwitchAppMutex"
 mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
-if ctypes.windll.kernel32.GetLastError() == 183: # ERROR_ALREADY_EXISTS
+if ctypes.windll.kernel32.GetLastError() == 183:
     print("App läuft bereits!")
     sys.exit(0)
 
@@ -56,9 +80,21 @@ class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title("Remote-Switch")
-        self.root.geometry("520x620") 
-        self.root.configure(bg="#f8fafc")
+        self.root.geometry("560x680") 
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
+        
+        # Win 11 Theme aktivieren
+        if HAS_SV_TTK:
+            sv_ttk.set_theme("dark")
+            
+        if HAS_MICA:
+            try:
+                # Wendet den "Liquid Glass" (Mica) Effekt an
+                pywinstyles.apply_style(self.root, "mica")
+                # Titelleiste passend dunkel färben
+                pywinstyles.change_header_color(self.root, color="#1c1c1c")
+            except Exception:
+                pass
         
         self.client = None
         self.connected = False
@@ -86,49 +122,39 @@ class BluetoothRemoteApp:
         self.thread.start()
 
     def setup_ui(self):
-        style = ttk.Style()
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        elif "clam" in style.theme_names():
-            style.theme_use("clam")
+        # Transparenter Container für Mica-Effekt
+        container = ttk.Frame(self.root, padding=25)
+        container.pack(fill="both", expand=True)
 
         # Header
-        header = tk.Frame(self.root, bg="#1e293b", height=70)
-        header.pack(fill="x")
+        header = ttk.Frame(container)
+        header.pack(fill="x", pady=(0, 20))
         
-        self.lbl_status = tk.Label(header, text="Suche Gerät...", bg="#1e293b", fg="#38bdf8", font=("Segoe UI", 12, "bold"))
-        self.lbl_status.pack(side="left", padx=20, pady=20)
+        self.lbl_status = ttk.Label(header, text="Suche Gerät...", font=("Segoe UI Variable Display", 14, "bold"), foreground="#38bdf8")
+        self.lbl_status.pack(side="left")
         
-        # Reconnect Button
-        btn_reconnect = tk.Button(header, text="🔄 Reconnect", command=self.force_reconnect, 
-                                  bg="#334155", fg="white", font=("Segoe UI", 10), relief="flat", padx=15, pady=5, cursor="hand2")
-        btn_reconnect.pack(side="right", padx=20, pady=15)
+        btn_reconnect = ttk.Button(header, text="🔄 Reconnect", command=self.force_reconnect)
+        btn_reconnect.pack(side="right")
 
         # Battery
-        self.lbl_battery = tk.Label(self.root, text="🔋 Akku: --%", font=("Segoe UI", 16, "bold"), bg="#f8fafc", fg="#475569")
-        self.lbl_battery.pack(pady=20)
+        self.lbl_battery = ttk.Label(container, text="🔋 Akku: --%", font=("Segoe UI Variable Display", 18))
+        self.lbl_battery.pack(pady=(10, 25))
 
-        # Main Container
-        container = tk.Frame(self.root, bg="#f8fafc")
-        container.pack(fill="both", expand=True, padx=25)
-
-        # Settings Frame
-        frame_settings = ttk.LabelFrame(container, text=" Tasten Konfiguration ")
-        frame_settings.pack(fill="x", pady=5)
+        # Settings Frame (Modernes LabelFrame)
+        frame_settings = ttk.LabelFrame(container, text=" Tasten Konfiguration ", padding=15)
+        frame_settings.pack(fill="x", pady=10)
 
         def create_key_row(parent, label_text, default_val, btn_num):
-            row = tk.Frame(parent)
-            row.pack(fill="x", padx=15, pady=10)
+            row = ttk.Frame(parent)
+            row.pack(fill="x", pady=8)
             
-            # KORREKTUR: width=15 gehört in das Label, nicht in pack()
-            ttk.Label(row, text=label_text, font=("Segoe UI", 10), width=15).pack(side="left", anchor="w")
+            ttk.Label(row, text=label_text, font=("Segoe UI Variable Text", 10), width=15).pack(side="left", anchor="w")
             
-            entry = ttk.Entry(row, font=("Segoe UI", 10))
+            entry = ttk.Entry(row, font=("Segoe UI Variable Text", 10))
             entry.insert(0, default_val)
             entry.pack(side="left", padx=10, expand=True, fill="x")
             
-            ai_btn = tk.Button(row, text="✨ KI Config", command=lambda: self.ask_ai(btn_num), 
-                               bg="#e0e7ff", fg="#3730a3", font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2")
+            ai_btn = ttk.Button(row, text="✨ KI Config", command=lambda: self.ask_ai(btn_num))
             ai_btn.pack(side="right")
             return entry
 
@@ -136,22 +162,23 @@ class BluetoothRemoteApp:
         self.entry_btn2 = create_key_row(frame_settings, "Taste 2 (Prev):", self.config["btn2_action"], 2)
         self.entry_btn3 = create_key_row(frame_settings, "Beide Tasten:", self.config.get("btn3_action", "print screen"), 3)
 
-        btn_save = tk.Button(frame_settings, text="💾 Speichern", command=self.save_config, 
-                             bg="#22c55e", fg="white", font=("Segoe UI", 10, "bold"), relief="flat", pady=8, cursor="hand2")
-        btn_save.pack(fill="x", padx=15, pady=(5, 15))
+        # Speichern mit "Accent" Style (Haupt-Button Farbe von Win11)
+        btn_save = ttk.Button(frame_settings, text="💾 Speichern", command=self.save_config, style="Accent.TButton")
+        btn_save.pack(fill="x", pady=(15, 0))
 
         # API Key Frame
-        frame_api = ttk.LabelFrame(container, text=" Google Gemini API Key ")
+        frame_api = ttk.LabelFrame(container, text=" Google Gemini API Key ", padding=15)
         frame_api.pack(fill="x", pady=15)
         
-        self.entry_api = ttk.Entry(frame_api, show="*", font=("Segoe UI", 10))
+        self.entry_api = ttk.Entry(frame_api, show="*", font=("Segoe UI Variable Text", 10))
         self.entry_api.insert(0, self.config["api_key"])
-        self.entry_api.pack(fill="x", padx=15, pady=15)
+        self.entry_api.pack(fill="x")
 
-        # Autostart Checkbox
+        # Autostart Checkbox als Win11 Toggle Switch (falls sv_ttk aktiv ist)
         self.var_autostart = tk.BooleanVar(value=self.is_autostart_enabled())
-        cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten (minimiert im Tray)", 
-                                      variable=self.var_autostart, command=self.toggle_autostart)
+        switch_style = "Switch.TCheckbutton" if HAS_SV_TTK else ""
+        cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten", 
+                                      variable=self.var_autostart, command=self.toggle_autostart, style=switch_style)
         cb_autostart.pack(side="bottom", pady=20)
 
     def is_autostart_enabled(self):
@@ -256,13 +283,11 @@ class BluetoothRemoteApp:
 
     # --- BLE LOGIK ---
     def force_reconnect(self):
-        """Erzwingt das Trennen der aktuellen Verbindung und startet den Scan neu."""
-        self.update_status("🔄 Neustart...", "#f59e0b")
+        self.update_status("🔄 Neustart...", "#fbbf24")
         if self.loop.is_running():
             asyncio.run_coroutine_threadsafe(self._async_disconnect(), self.loop)
 
     async def _async_disconnect(self):
-        """Trennt den Client sauber auf Async-Ebene."""
         if self.client:
             try: await self.client.disconnect()
             except Exception: pass
@@ -275,7 +300,7 @@ class BluetoothRemoteApp:
 
     async def ble_main(self):
         if self.startup_delay > 0:
-            self.update_status(f"Warte auf Bluetooth...", "#f59e0b")
+            self.update_status(f"Warte auf Bluetooth...", "#fbbf24")
             await asyncio.sleep(self.startup_delay)
         
         for attempt in range(6):
@@ -284,38 +309,36 @@ class BluetoothRemoteApp:
                 break
             except Exception:
                 if attempt < 5:
-                    self.update_status(f"Bluetooth nicht bereit... ({attempt+1}/6)", "#f59e0b")
+                    self.update_status(f"Bluetooth nicht bereit... ({attempt+1}/6)", "#fbbf24")
                     await asyncio.sleep(5)
                 else:
                     self.update_status("⚠️ Bluetooth-Problem!", "#ef4444")
         
         while True:
             if not self.connected:
-                self.update_status("Scanne nach Remote-Switch...", "#f59e0b")
+                self.update_status("Scanne nach Remote-Switch...", "#fbbf24")
                 try:
                     device = await BleakScanner.find_device_by_name("Remote-Switch", timeout=5.0) # type: ignore
                     if device:
-                        self.update_status(f"Gefunden! Verbinde...", "#3b82f6")
+                        self.update_status(f"Gefunden! Verbinde...", "#38bdf8")
                         try:
-                            # Explizites Neuerstellen des Clients behebt Ghosting-Probleme beim Reconnect
                             self.client = BleakClient(device, disconnected_callback=self.on_disconnect)
                             await self.client.connect()
                             
                             self.connected = True
-                            self.update_status("✅ Verbunden & Bereit", "#22c55e")
+                            self.update_status("✅ Verbunden & Bereit", "#4ade80")
                             
                             await self.client.start_notify(CHAR_BUTTON_UUID, self.notification_handler)
                             try: await self.client.start_notify(CHAR_BATTERY_UUID, self.battery_handler)
                             except Exception: pass
 
-                            # Solange verbunden, halte Loop am Leben. Wenn force_reconnect gerufen wird, bricht dies ab.
                             while self.connected and self.client.is_connected:
                                 await asyncio.sleep(1)
                                 
                         except Exception as e:
                             print(f"Connection Error: {e}")
                             self.update_status("Verbindungsfehler. Retry...", "#ef4444")
-                            await self._async_disconnect() # Cleanup erzwingen
+                            await self._async_disconnect()
                     else:
                         await asyncio.sleep(2)
                 except Exception as e:
@@ -348,8 +371,8 @@ class BluetoothRemoteApp:
             self.root.after(0, lambda: self.lbl_battery.config(text=f"🔋 Akku: {val}%"))
         except Exception: pass
 
-    def update_status(self, text, color="black"):
-        try: self.root.after(0, lambda: self.lbl_status.config(text=text, fg=color))
+    def update_status(self, text, color="white"):
+        try: self.root.after(0, lambda: self.lbl_status.config(text=text, foreground=color))
         except Exception: pass
 
     # --- SYSTEM TRAY FUNKTIONEN ---
