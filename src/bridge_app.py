@@ -80,7 +80,7 @@ class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title("Remote-Switch")
-        self.root.geometry("560x680") 
+        self.root.geometry("720x760") 
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
         
         # Win 11 Theme aktivieren
@@ -122,6 +122,10 @@ class BluetoothRemoteApp:
         self.thread.start()
 
     def setup_ui(self):
+        # Styling anpassen (Macht den Speichern-Button schön groß und fett)
+        style = ttk.Style()
+        style.configure("Accent.TButton", font=("Segoe UI Variable Display", 13, "bold"), padding=10)
+
         # Transparenter Container für Mica-Effekt
         container = ttk.Frame(self.root, padding=25)
         container.pack(fill="both", expand=True)
@@ -140,17 +144,19 @@ class BluetoothRemoteApp:
         self.lbl_battery = ttk.Label(container, text="🔋 Akku: --%", font=("Segoe UI Variable Display", 18))
         self.lbl_battery.pack(pady=(10, 25))
 
-        # Settings Frame (Modernes LabelFrame)
-        frame_settings = ttk.LabelFrame(container, text=" Tasten Konfiguration ", padding=15)
+        # --- NEU: Große Überschrift für Tasten Konfiguration ---
+        lbl_settings_title = ttk.Label(container, text=" Tasten Konfiguration ", font=("Segoe UI Variable Display", 13, "bold"))
+        frame_settings = ttk.LabelFrame(container, labelwidget=lbl_settings_title, padding=15)
         frame_settings.pack(fill="x", pady=10)
 
         def create_key_row(parent, label_text, default_val, btn_num):
             row = ttk.Frame(parent)
             row.pack(fill="x", pady=8)
             
-            ttk.Label(row, text=label_text, font=("Segoe UI Variable Text", 10), width=15).pack(side="left", anchor="w")
+            # Label und Entry auf Schriftgröße 13
+            ttk.Label(row, text=label_text, font=("Segoe UI Variable Text", 13), width=15).pack(side="left", anchor="w")
             
-            entry = ttk.Entry(row, font=("Segoe UI Variable Text", 10))
+            entry = ttk.Entry(row, font=("Segoe UI Variable Text", 13))
             entry.insert(0, default_val)
             entry.pack(side="left", padx=10, expand=True, fill="x")
             
@@ -162,19 +168,20 @@ class BluetoothRemoteApp:
         self.entry_btn2 = create_key_row(frame_settings, "Taste 2 (Prev):", self.config["btn2_action"], 2)
         self.entry_btn3 = create_key_row(frame_settings, "Beide Tasten:", self.config.get("btn3_action", "print screen"), 3)
 
-        # Speichern mit "Accent" Style (Haupt-Button Farbe von Win11)
+        # Speichern mit "Accent" Style (übernimmt jetzt die große Schrift von oben)
         btn_save = ttk.Button(frame_settings, text="💾 Speichern", command=self.save_config, style="Accent.TButton")
         btn_save.pack(fill="x", pady=(15, 0))
 
-        # API Key Frame
-        frame_api = ttk.LabelFrame(container, text=" Google Gemini API Key ", padding=15)
+        # --- NEU: Große Überschrift für API Key ---
+        lbl_api_title = ttk.Label(container, text=" Google Gemini API Key ", font=("Segoe UI Variable Display", 13, "bold"))
+        frame_api = ttk.LabelFrame(container, labelwidget=lbl_api_title, padding=15)
         frame_api.pack(fill="x", pady=15)
         
-        self.entry_api = ttk.Entry(frame_api, show="*", font=("Segoe UI Variable Text", 10))
+        self.entry_api = ttk.Entry(frame_api, show="*", font=("Segoe UI Variable Text", 13))
         self.entry_api.insert(0, self.config["api_key"])
         self.entry_api.pack(fill="x")
 
-        # Autostart Checkbox als Win11 Toggle Switch (falls sv_ttk aktiv ist)
+        # Autostart Checkbox
         self.var_autostart = tk.BooleanVar(value=self.is_autostart_enabled())
         switch_style = "Switch.TCheckbutton" if HAS_SV_TTK else ""
         cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten", 
