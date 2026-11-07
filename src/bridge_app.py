@@ -33,45 +33,31 @@ SERVICE_UUID = "12345678-1234-1234-1234-1234567890ab"
 CHAR_BUTTON_UUID = "12345678-1234-1234-1234-1234567890ac"
 CHAR_BATTERY_UUID = "12345678-1234-1234-1234-1234567890ad"
 
-# Config Datei liegt immer im gleichen Ordner wie die Exe/Script
 if getattr(sys, 'frozen', False):
-    # Wenn als EXE ausgeführt
     APP_DIR = os.path.dirname(sys.executable)
-    # PyInstaller extrahiert Dateien nach _MEIPASS
     BUNDLE_DIR = sys._MEIPASS
 else:
-    # Wenn als Skript ausgeführt
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     BUNDLE_DIR = APP_DIR
 
 CONFIG_FILE = os.path.join(APP_DIR, "remote_config.json")
 
-# Extrahiere Icon beim ersten Start (nur bei EXE)
 def extract_icon():
-    """Extrahiert das Icon aus der EXE ins APP_DIR beim ersten Start"""
     icon_dest = os.path.join(APP_DIR, "icon.ico")
-    
-    # Wenn Icon bereits existiert, nichts tun
-    if os.path.exists(icon_dest):
-        return
-    
-    # Icon aus Bundle kopieren
+    if os.path.exists(icon_dest): return
     icon_source = os.path.join(BUNDLE_DIR, "icon.ico")
     if os.path.exists(icon_source):
-        try:
-            shutil.copy2(icon_source, icon_dest)
-            print(f"Icon extrahiert nach: {icon_dest}")
-        except Exception as e:
-            print(f"Icon Extraktion fehlgeschlagen: {e}")
+        try: shutil.copy2(icon_source, icon_dest)
+        except Exception as e: print(f"Icon Extraktion fehlgeschlagen: {e}")
 
-# Beim Start Icon extrahieren
 extract_icon()
 
 class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title("Remote-Switch")
-        self.root.geometry("500x650") 
+        self.root.geometry("520x620") 
+        self.root.configure(bg="#f8fafc")
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
         
         self.client = None
@@ -80,10 +66,8 @@ class BluetoothRemoteApp:
         self.startup_delay = startup_delay
         self.tray_icon = None
         
-        # Fenster-Protokoll für Schließen (verstecken statt beenden)
         self.root.protocol("WM_DELETE_WINDOW", self.hide_window)
         
-        # Default Config
         self.config = {
             "api_key": "",
             "btn1_action": "pagedown", 
@@ -91,81 +75,83 @@ class BluetoothRemoteApp:
             "btn3_action": "print screen" 
         }
         self.load_config()
-        
         self.setup_ui()
-        
-        # System Tray Icon erstellen
         self.setup_tray_icon()
         
-        # Bei Autostart: Fenster verstecken
         if start_hidden:
             self.root.after(100, self.hide_window)
         
-        # Start BLE Loop
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self.start_async_loop, daemon=True)
         self.thread.start()
 
     def setup_ui(self):
+        style = ttk.Style()
+        if "vista" in style.theme_names():
+            style.theme_use("vista")
+        elif "clam" in style.theme_names():
+            style.theme_use("clam")
+
         # Header
-        header = tk.Frame(self.root, bg="#333", height=60)
+        header = tk.Frame(self.root, bg="#1e293b", height=70)
         header.pack(fill="x")
-        self.lbl_status = tk.Label(header, text="Suche Gerät...", bg="#333", fg="white", font=("Arial", 12, "bold"))
-        self.lbl_status.pack(pady=10)
         
+        self.lbl_status = tk.Label(header, text="Suche Gerät...", bg="#1e293b", fg="#38bdf8", font=("Segoe UI", 12, "bold"))
+        self.lbl_status.pack(side="left", padx=20, pady=20)
+        
+        # Reconnect Button
+        btn_reconnect = tk.Button(header, text="🔄 Reconnect", command=self.force_reconnect, 
+                                  bg="#334155", fg="white", font=("Segoe UI", 10), relief="flat", padx=15, pady=5, cursor="hand2")
+        btn_reconnect.pack(side="right", padx=20, pady=15)
+
         # Battery
-        self.lbl_battery = tk.Label(self.root, text="🔋 Akku: --%", font=("Arial", 14))
+        self.lbl_battery = tk.Label(self.root, text="🔋 Akku: --%", font=("Segoe UI", 16, "bold"), bg="#f8fafc", fg="#475569")
         self.lbl_battery.pack(pady=20)
 
-        # Settings
-        frame_settings = tk.LabelFrame(self.root, text="Tasten Konfiguration", padx=10, pady=10)
-        frame_settings.pack(fill="x", padx=20)
+        # Main Container
+        container = tk.Frame(self.root, bg="#f8fafc")
+        container.pack(fill="both", expand=True, padx=25)
 
-        # Button 1
-        tk.Label(frame_settings, text="Taste 1 (Next):").pack(anchor="w")
-        self.entry_btn1 = tk.Entry(frame_settings)
-        self.entry_btn1.insert(0, self.config["btn1_action"])
-        self.entry_btn1.pack(fill="x", pady=(0, 5))
+        # Settings Frame
+        frame_settings = ttk.LabelFrame(container, text=" Tasten Konfiguration ")
+        frame_settings.pack(fill="x", pady=5)
+
+        def create_key_row(parent, label_text, default_val, btn_num):
+            row = tk.Frame(parent)
+            row.pack(fill="x", padx=15, pady=10)
+            ttk.Label(row, text=label_text, font=("Segoe UI", 10)).pack(side="left", anchor="w", width=15)
+            
+            entry = ttk.Entry(row, font=("Segoe UI", 10))
+            entry.insert(0, default_val)
+            entry.pack(side="left", padx=10, expand=True, fill="x")
+            
+            ai_btn = tk.Button(row, text="✨ KI Config", command=lambda: self.ask_ai(btn_num), 
+                               bg="#e0e7ff", fg="#3730a3", font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2")
+            ai_btn.pack(side="right")
+            return entry
+
+        self.entry_btn1 = create_key_row(frame_settings, "Taste 1 (Next):", self.config["btn1_action"], 1)
+        self.entry_btn2 = create_key_row(frame_settings, "Taste 2 (Prev):", self.config["btn2_action"], 2)
+        self.entry_btn3 = create_key_row(frame_settings, "Beide Tasten:", self.config.get("btn3_action", "print screen"), 3)
+
+        btn_save = tk.Button(frame_settings, text="💾 Speichern", command=self.save_config, 
+                             bg="#22c55e", fg="white", font=("Segoe UI", 10, "bold"), relief="flat", pady=8, cursor="hand2")
+        btn_save.pack(fill="x", padx=15, pady=(5, 15))
+
+        # API Key Frame
+        frame_api = ttk.LabelFrame(container, text=" Google Gemini API Key ")
+        frame_api.pack(fill="x", pady=15)
         
-        btn_ai_1 = tk.Button(frame_settings, text="✨ KI Config Taste 1", command=lambda: self.ask_ai(1), bg="#e0e7ff")
-        btn_ai_1.pack(fill="x", pady=(0, 10))
-
-        # Button 2
-        tk.Label(frame_settings, text="Taste 2 (Prev):").pack(anchor="w")
-        self.entry_btn2 = tk.Entry(frame_settings)
-        self.entry_btn2.insert(0, self.config["btn2_action"])
-        self.entry_btn2.pack(fill="x", pady=(0, 5))
-        
-        btn_ai_2 = tk.Button(frame_settings, text="✨ KI Config Taste 2", command=lambda: self.ask_ai(2), bg="#e0e7ff")
-        btn_ai_2.pack(fill="x", pady=(0, 10))
-        
-        tk.Button(frame_settings, text="💾 Speichern", command=self.save_config, bg="#d4edda").pack(fill="x", pady=10)
-
-        # Button 3 (Beide)
-        tk.Label(frame_settings, text="Beide Tasten (z.B. Screenshot):").pack(anchor="w")
-        self.entry_btn3 = tk.Entry(frame_settings)
-        self.entry_btn3.insert(0, self.config.get("btn3_action", "print screen"))
-        self.entry_btn3.pack(fill="x", pady=(0, 5))
-
-        btn_ai_3 = tk.Button(frame_settings, text="✨ KI Config Beide Tasten", command=lambda: self.ask_ai(3), bg="#e0e7ff")
-        btn_ai_3.pack(fill="x", pady=(0, 10))
-
-        # API Key
-        frame_api = tk.LabelFrame(self.root, text="Google Gemini API Key", padx=10, pady=10)
-        frame_api.pack(fill="x", padx=20, pady=10)
-        self.entry_api = tk.Entry(frame_api, show="*")
+        self.entry_api = ttk.Entry(frame_api, show="*", font=("Segoe UI", 10))
         self.entry_api.insert(0, self.config["api_key"])
-        self.entry_api.pack(fill="x")
+        self.entry_api.pack(fill="x", padx=15, pady=15)
 
-        # --- AUTOSTART CHECKBOX ---
-        self.var_autostart = tk.BooleanVar()
-        self.var_autostart.set(self.is_autostart_enabled())
-        cb_autostart = tk.Checkbutton(self.root, text="Automatisch mit Windows starten", 
+        # Autostart Checkbox
+        self.var_autostart = tk.BooleanVar(value=self.is_autostart_enabled())
+        cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten (minimiert im Tray)", 
                                       variable=self.var_autostart, command=self.toggle_autostart)
-        cb_autostart.pack(side="bottom", pady=15)
+        cb_autostart.pack(side="bottom", pady=20)
 
-
-    # --- AUTOSTART LOGIK ---
     def is_autostart_enabled(self):
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)
@@ -177,15 +163,11 @@ class BluetoothRemoteApp:
 
     def toggle_autostart(self):
         app_name = "Remote-Switch"
-        
-        # Ermittle Pfad zur Exe oder zum Skript
         exe_path = sys.executable
         if not getattr(sys, 'frozen', False):
-            # Wenn Skript: Wir nutzen pythonw.exe (ohne Konsole)
             script_path = os.path.abspath(__file__)
             exe_path = f'"{exe_path.replace("python.exe", "pythonw.exe")}" "{script_path}"'
         else:
-            # Wenn EXE: Pfad in Anführungszeichen
             exe_path = f'"{exe_path}"'
 
         try:
@@ -194,11 +176,9 @@ class BluetoothRemoteApp:
                 winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
                 messagebox.showinfo("Autostart", "Autostart aktiviert!\nDie App startet nun beim Login minimiert.")
             else:
-                try:
-                    winreg.DeleteValue(key, app_name)
-                    messagebox.showinfo("Autostart", "Autostart deaktiviert!")
-                except FileNotFoundError:
-                    pass
+                try: winreg.DeleteValue(key, app_name)
+                except FileNotFoundError: pass
+                messagebox.showinfo("Autostart", "Autostart deaktiviert!")
             key.Close()
         except Exception as e:
             messagebox.showerror("Fehler", f"Konnte Registry nicht ändern: {e}")
@@ -209,8 +189,7 @@ class BluetoothRemoteApp:
             try:
                 with open(CONFIG_FILE, "r") as f:
                     self.config.update(json.load(f))
-            except Exception:
-                pass
+            except Exception: pass
 
     def save_config(self):
         self.config["btn1_action"] = self.entry_btn1.get()
@@ -236,49 +215,19 @@ class BluetoothRemoteApp:
 
         try:
             client = genai.Client(api_key=api_key) # type: ignore
-            
             system_instruction = """
             You are a keyboard configuration assistant.
             Convert the user request into a Python 'keyboard' library hotkey string.
-            Examples:
-            'Nächste Seite' -> 'pagedown'
-            'Lauter' -> 'volume up'
-            'Copy' -> 'ctrl+c'
-            'Screenshot' -> 'print screen'
-            
             ONLY return the key string. No markdown, no explanations.
             """
             
             response_text = ""
-            used_model = ""
-
-            print("Lade verfügbare Modelle...")
-            available_models = []
+            available_models = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-pro"]
             
-            try:
-                for m in client.models.list(): # type: ignore
-                    model_name = m.name
-                    if "embedding" not in model_name and "gemini" in model_name:
-                         available_models.append(model_name)
-            except Exception as e:
-                print(f"Fallback Modelle nutzen: {e}")
-                available_models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"]
-
-            def model_priority(name):
-                name = name.lower()
-                if "flash" in name and "exp" not in name: return 0  
-                if "pro" in name and "exp" not in name: return 1    
-                if "flash" in name: return 2                        
-                return 3                                            
-
-            available_models.sort(key=model_priority)
-
             for model_name in available_models:
-                clean_name = model_name.replace("models/", "")
                 try:
-                    print(f"Versuche Modell: {clean_name}...")
                     response = client.models.generate_content( # type: ignore
-                        model=clean_name,
+                        model=model_name,
                         contents=prompt,
                         config=types.GenerateContentConfig( # type: ignore
                             system_instruction=system_instruction,
@@ -287,90 +236,95 @@ class BluetoothRemoteApp:
                     )
                     if response.text:
                         response_text = response.text
-                        used_model = clean_name
-                        print(f"✅ Erfolg mit {clean_name}!")
                         break 
                 except Exception:
                     pass
             
             if not response_text:
-                raise Exception("Kein verfügbares Modell antwortet.")
+                raise Exception("Kein KI Modell verfügbar.")
 
-            key_code = response_text.strip().lower()
-            key_code = key_code.replace('`', '').replace("'", "").replace('"', "")
-
-            if btn_num == 1:
-                self.entry_btn1.delete(0, tk.END)
-                self.entry_btn1.insert(0, key_code)
-            elif btn_num == 2:
-                self.entry_btn2.delete(0, tk.END)
-                self.entry_btn2.insert(0, key_code)
-            else:
-                self.entry_btn3.delete(0, tk.END)
-                self.entry_btn3.insert(0, key_code)
-                
+            key_code = response_text.strip().lower().replace('`', '').replace("'", "").replace('"', "")
+            target_entry = {1: self.entry_btn1, 2: self.entry_btn2, 3: self.entry_btn3}[btn_num]
+            target_entry.delete(0, tk.END)
+            target_entry.insert(0, key_code)
             self.save_config()
-            messagebox.showinfo("Erfolg", f"Taste konfiguriert auf: {key_code}\n(Modell: {used_model})")
             
         except Exception as e:
             messagebox.showerror("KI Fehler", f"Konnte KI nicht erreichen:\n{str(e)}")
+
+    # --- BLE LOGIK ---
+    def force_reconnect(self):
+        """Erzwingt das Trennen der aktuellen Verbindung und startet den Scan neu."""
+        self.update_status("🔄 Neustart...", "#f59e0b")
+        if self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self._async_disconnect(), self.loop)
+
+    async def _async_disconnect(self):
+        """Trennt den Client sauber auf Async-Ebene."""
+        if self.client:
+            try: await self.client.disconnect()
+            except Exception: pass
+            finally: self.client = None
+        self.connected = False
 
     def start_async_loop(self):
         asyncio.set_event_loop(self.loop)
         self.loop.run_until_complete(self.ble_main())
 
     async def ble_main(self):
-        # Beim Autostart: Warte bis Bluetooth bereit ist
         if self.startup_delay > 0:
-            self.update_status(f"Warte {self.startup_delay}s auf Bluetooth...", "orange")
+            self.update_status(f"Warte auf Bluetooth...", "#f59e0b")
             await asyncio.sleep(self.startup_delay)
         
-        # Warte bis BLE-Scanner verfügbar ist (max 30s)
         for attempt in range(6):
             try:
-                # Test ob Scanner funktioniert
                 await BleakScanner.discover(timeout=0.5) # type: ignore
-                break  # Scanner funktioniert!
-            except Exception as e:
+                break
+            except Exception:
                 if attempt < 5:
-                    self.update_status(f"Bluetooth noch nicht bereit... ({attempt+1}/6)", "orange")
+                    self.update_status(f"Bluetooth nicht bereit... ({attempt+1}/6)", "#f59e0b")
                     await asyncio.sleep(5)
                 else:
-                    self.update_status("⚠️ Bluetooth-Problem! Retry...", "red")
+                    self.update_status("⚠️ Bluetooth-Problem!", "#ef4444")
         
         while True:
-            self.update_status("Scanne nach Remote-Switch...", "orange")
-            try:
-                device = await BleakScanner.find_device_by_name("Remote-Switch", timeout=5.0) # type: ignore
-                
-                if device:
-                    self.update_status(f"Gefunden! Verbinde...", "blue")
-                    try:
-                        async with BleakClient(device, disconnected_callback=self.on_disconnect) as client:
-                            self.client = client
-                            self.connected = True
-                            self.update_status("✅ Verbunden & Bereit", "green")
+            if not self.connected:
+                self.update_status("Scanne nach Remote-Switch...", "#f59e0b")
+                try:
+                    device = await BleakScanner.find_device_by_name("Remote-Switch", timeout=5.0) # type: ignore
+                    if device:
+                        self.update_status(f"Gefunden! Verbinde...", "#3b82f6")
+                        try:
+                            # Explizites Neuerstellen des Clients behebt Ghosting-Probleme beim Reconnect
+                            self.client = BleakClient(device, disconnected_callback=self.on_disconnect)
+                            await self.client.connect()
                             
-                            await client.start_notify(CHAR_BUTTON_UUID, self.notification_handler)
-                            try:
-                                await client.start_notify(CHAR_BATTERY_UUID, self.battery_handler)
-                            except Exception:
-                                pass
+                            self.connected = True
+                            self.update_status("✅ Verbunden & Bereit", "#22c55e")
+                            
+                            await self.client.start_notify(CHAR_BUTTON_UUID, self.notification_handler)
+                            try: await self.client.start_notify(CHAR_BATTERY_UUID, self.battery_handler)
+                            except Exception: pass
 
-                            while client.is_connected:
+                            # Solange verbunden, halte Loop am Leben. Wenn force_reconnect gerufen wird, bricht dies ab.
+                            while self.connected and self.client.is_connected:
                                 await asyncio.sleep(1)
-                    except Exception as e:
-                        print(f"Connection Error: {e}")
-                        self.update_status("Verbindungsfehler. Retry in 2s...", "red")
-                
-                await asyncio.sleep(2)
-            except Exception as e:
-                print(f"Scan Error: {e}")
-                await asyncio.sleep(2)
+                                
+                        except Exception as e:
+                            print(f"Connection Error: {e}")
+                            self.update_status("Verbindungsfehler. Retry...", "#ef4444")
+                            await self._async_disconnect() # Cleanup erzwingen
+                    else:
+                        await asyncio.sleep(2)
+                except Exception as e:
+                    print(f"Scan Error: {e}")
+                    await asyncio.sleep(2)
+            else:
+                await asyncio.sleep(1)
 
     def on_disconnect(self, client):
         self.connected = False
-        self.update_status("Verbindung verloren.", "red")
+        self.update_status("Verbindung verloren.", "#ef4444")
 
     def notification_handler(self, sender, data):
         try:
@@ -390,79 +344,48 @@ class BluetoothRemoteApp:
             val = int.from_bytes(data, byteorder="little")
             self.battery_level = val
             self.root.after(0, lambda: self.lbl_battery.config(text=f"🔋 Akku: {val}%"))
-        except Exception:
-            pass
+        except Exception: pass
 
     def update_status(self, text, color="black"):
-        try:
-            self.root.after(0, lambda: self.lbl_status.config(text=text, fg=color))
-        except Exception:
-            pass
+        try: self.root.after(0, lambda: self.lbl_status.config(text=text, fg=color))
+        except Exception: pass
 
     # --- SYSTEM TRAY FUNKTIONEN ---
     def setup_tray_icon(self):
-        """Erstellt das System Tray Icon"""
         try:
-            # Lade Icon aus .ico Datei oder erstelle ein einfaches
             icon_path = os.path.join(APP_DIR, "icon.ico")
-            if os.path.exists(icon_path):
-                image = Image.open(icon_path)
-            else:
-                # Fallback: Erstelle einfaches Icon
-                image = Image.new('RGB', (64, 64), color='blue')
+            if os.path.exists(icon_path): image = Image.open(icon_path)
+            else: image = Image.new('RGB', (64, 64), color='blue')
             
-            # Tray Menu
             menu = pystray.Menu(
-                pystray.MenuItem("Einstellungen öffnen", self.show_window, default=True),  # Default = Doppelklick
+                pystray.MenuItem("Einstellungen öffnen", self.show_window, default=True),
                 pystray.MenuItem("Beenden", self.quit_app)
             )
-            
-            # Erstelle Tray Icon
-            self.tray_icon = pystray.Icon(
-                "Remote-Switch",
-                image,
-                "Remote-Switch",
-                menu,
-                on_activated=self.show_window  # Doppelklick öffnet Fenster
-            )
-            
-            # Starte Tray Icon in separatem Thread
+            self.tray_icon = pystray.Icon("Remote-Switch", image, "Remote-Switch", menu, on_activated=self.show_window)
             tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
             tray_thread.start()
-            
-        except Exception as e:
-            print(f"Tray Icon Fehler: {e}")
+        except Exception as e: print(f"Tray Icon Fehler: {e}")
     
-    def show_window(self, icon=None, item=None):
-        """Zeigt das Hauptfenster"""
-        self.root.after(0, self._show_window)
+    def show_window(self, icon=None, item=None): self.root.after(0, self._show_window)
     
     def _show_window(self):
-        """Interne Methode zum Anzeigen (muss im Tkinter-Thread laufen)"""
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
     
-    def hide_window(self):
-        """Versteckt das Fenster (läuft weiter im Tray)"""
-        self.root.withdraw()
+    def hide_window(self): self.root.withdraw()
     
     def quit_app(self, icon=None, item=None):
-        """Beendet die App komplett"""
         try:
-            if self.tray_icon:
-                self.tray_icon.stop()
-            self.root.after(0, self.root.destroy)  # Sauberes Beenden im Tkinter-Thread
-        except Exception:
-            pass
+            if self.tray_icon: self.tray_icon.stop()
+            self.root.after(0, self.root.destroy)
+        except Exception: pass
 
 if __name__ == "__main__":
-    # Erkenne ob via Autostart gestartet (weniger als 3 Min nach Boot)
     uptime_sec = time.time() - os.path.getmtime("C:\\Windows\\System32")
-    is_autostart = uptime_sec < 180  # < 3 Minuten nach Boot
+    is_autostart = uptime_sec < 180 
     
     root = tk.Tk()
-    # Bei Autostart: 8 Sekunden warten auf Bluetooth + versteckt starten
     startup_delay = 8 if is_autostart else 0
     app = BluetoothRemoteApp(root, startup_delay=startup_delay, start_hidden=is_autostart)
     root.mainloop()
