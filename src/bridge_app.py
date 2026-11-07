@@ -80,7 +80,7 @@ class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title("Remote-Switch")
-        self.root.geometry("720x760") 
+        self.root.geometry("760x750") 
         self.root.iconbitmap(default=os.path.join(APP_DIR, "icon.ico"))
         
         # Win 11 Theme aktivieren
@@ -191,7 +191,7 @@ class BluetoothRemoteApp:
         cb_autostart = ttk.Checkbutton(container, text="Automatisch mit Windows starten", 
                                       variable=self.var_autostart, command=self.toggle_autostart, style=switch_style)
         cb_autostart.pack(side="bottom", pady=20)
-        
+
     def is_autostart_enabled(self):
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_READ)

@@ -2,8 +2,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build .EXE File (PyInstaller)",
+            "label": "PyInstaller: Build .EXE File",
             "type": "shell",
+            "group": "build",
             "command": "pyinstaller --noconfirm --onefile --windowed --icon=src/icon.ico --add-data 'src/icon.ico;.' --name Remote-Switch src/bridge_app.py",
             "problemMatcher": []
         }
