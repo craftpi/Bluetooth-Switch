@@ -1,6 +1,6 @@
-import ctypes
 import argparse
 import asyncio
+import ctypes
 import json
 import logging
 import os
@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 import winreg
+from ctypes import wintypes
 
 # --- DPI AWARENESS FIX ---
 # Verhindert verschwommene Schrift auf hochauflösenden Displays (wie Laptops)
@@ -121,6 +122,87 @@ def resolve_config_file():
 
 
 CONFIG_FILE = resolve_config_file()
+CREDENTIAL_TARGET = f"{APP_NAME}/GeminiAPIKey"
+CRED_TYPE_GENERIC = 1
+CRED_PERSIST_LOCAL_MACHINE = 2
+
+
+class CREDENTIAL(ctypes.Structure):
+    _fields_ = [
+        ("Flags", wintypes.DWORD),
+        ("Type", wintypes.DWORD),
+        ("TargetName", wintypes.LPWSTR),
+        ("Comment", wintypes.LPWSTR),
+        ("LastWritten", wintypes.FILETIME),
+        ("CredentialBlobSize", wintypes.DWORD),
+        ("CredentialBlob", ctypes.POINTER(ctypes.c_byte)),
+        ("Persist", wintypes.DWORD),
+        ("AttributeCount", wintypes.DWORD),
+        ("Attributes", ctypes.c_void_p),
+        ("TargetAlias", wintypes.LPWSTR),
+        ("UserName", wintypes.LPWSTR),
+    ]
+
+
+def read_credential_secret(target=CREDENTIAL_TARGET):
+    cred_ptr = ctypes.POINTER(CREDENTIAL)()
+    try:
+        ok = ctypes.windll.advapi32.CredReadW(wintypes.LPCWSTR(target), CRED_TYPE_GENERIC, 0, ctypes.byref(cred_ptr))
+        if not ok or not cred_ptr:
+            return ""
+        cred = cred_ptr.contents
+        if cred.CredentialBlobSize and cred.CredentialBlob:
+            blob = ctypes.string_at(cred.CredentialBlob, cred.CredentialBlobSize)
+            return blob.decode("utf-16-le", errors="ignore").rstrip("\x00").strip()
+        return ""
+    except Exception as exc:
+        LOG.info("Credential Manager konnte nicht gelesen werden: %s", exc)
+        return ""
+    finally:
+        try:
+            if cred_ptr:
+                ctypes.windll.advapi32.CredFree(cred_ptr)
+        except Exception:
+            pass
+
+
+def write_credential_secret(secret, target=CREDENTIAL_TARGET):
+    secret = str(secret or "")
+    blob = secret.encode("utf-16-le")
+    blob_buffer = (ctypes.c_byte * len(blob)).from_buffer_copy(blob)
+    cred = CREDENTIAL()
+    cred.Flags = 0
+    cred.Type = CRED_TYPE_GENERIC
+    cred.TargetName = target
+    cred.Comment = None
+    cred.CredentialBlobSize = len(blob)
+    cred.CredentialBlob = ctypes.cast(blob_buffer, ctypes.POINTER(ctypes.c_byte))
+    cred.Persist = CRED_PERSIST_LOCAL_MACHINE
+    cred.AttributeCount = 0
+    cred.Attributes = None
+    cred.TargetAlias = None
+    cred.UserName = APP_NAME
+    try:
+        ok = ctypes.windll.advapi32.CredWriteW(ctypes.byref(cred), 0)
+        if not ok:
+            raise ctypes.WinError()
+        return True
+    except Exception as exc:
+        LOG.warning("Credential Manager konnte nicht geschrieben werden: %s", exc)
+        return False
+
+
+def delete_credential_secret(target=CREDENTIAL_TARGET):
+    try:
+        ok = ctypes.windll.advapi32.CredDeleteW(wintypes.LPCWSTR(target), CRED_TYPE_GENERIC, 0)
+        if not ok:
+            err = ctypes.get_last_error()
+            if err != 1168:  # ERROR_NOT_FOUND
+                raise ctypes.WinError(err)
+        return True
+    except Exception as exc:
+        LOG.info("Credential Manager-Eintrag konnte nicht gelöscht werden: %s", exc)
+        return False
 
 
 def extract_icon():
@@ -168,7 +250,8 @@ class BluetoothRemoteApp:
     def __init__(self, root, startup_delay=0, start_hidden=False):
         self.root = root
         self.root.title(APP_NAME)
-        self.root.geometry("760x750")
+        self.root.geometry("760x880")
+        self.root.minsize(720, 820)
         if os.path.exists(ICON_PATH):
             try:
                 self.root.iconbitmap(default=ICON_PATH)
@@ -269,7 +352,7 @@ class BluetoothRemoteApp:
         self.entry_api.pack(fill="x")
         ttk.Label(
             frame_api,
-            text="Tipp: Für mehr Sicherheit kann REMOTE_SWITCH_GEMINI_API_KEY als Umgebungsvariable gesetzt werden.",
+            text="Der eingegebene API-Key wird beim Speichern automatisch in der Windows Anmeldeinformationsverwaltung abgelegt. Optional kann REMOTE_SWITCH_GEMINI_API_KEY als Umgebungsvariable gesetzt werden (hat Vorrang).",
             font=("Segoe UI Variable Text", 9),
             foreground="#94a3b8",
             wraplength=680,
@@ -285,7 +368,7 @@ class BluetoothRemoteApp:
             command=self.toggle_autostart,
             style=switch_style,
         )
-        cb_autostart.pack(side="bottom", pady=20)
+        cb_autostart.pack(side="bottom", pady=(12, 8), anchor="w")
 
     def is_autostart_enabled(self):
         try:
@@ -336,18 +419,47 @@ class BluetoothRemoteApp:
 
     def load_config(self):
         env_key = os.environ.get("REMOTE_SWITCH_GEMINI_API_KEY", "").strip()
+        config_key = ""
+        data = {}
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as file:
-                    data = json.load(file)
-                if isinstance(data, dict):
+                    loaded = json.load(file)
+                if isinstance(loaded, dict):
+                    data = loaded
                     for key, default in DEFAULT_CONFIG.items():
                         self.config[key] = validate_hotkey(data.get(key, default)) or default
-                    self.api_key = str(data.get("api_key", "") or "").strip()
+                    config_key = str(data.get("api_key", "") or "").strip()
             except Exception as exc:
                 LOG.warning("Konfiguration konnte nicht geladen werden: %s", exc)
-        if env_key:
-            self.api_key = env_key
+
+        credential_key = read_credential_secret()
+        migrated_to_credential = False
+        if config_key and not credential_key and not env_key:
+            if write_credential_secret(config_key):
+                credential_key = config_key
+                config_key = ""
+                migrated_to_credential = True
+                LOG.info("API-Key aus Konfigurationsdatei in Windows Credential Manager migriert.")
+
+        # Env-Var hat Vorrang (bewusster Override); danach Credential Manager; danach Legacy-Config.
+        self.api_key = env_key or credential_key or config_key
+
+        # Bei erfolgreicher Migration Klartext-Key aus Config-Datei entfernen.
+        if migrated_to_credential and os.path.exists(CONFIG_FILE):
+            try:
+                clean = dict(DEFAULT_CONFIG)
+                if isinstance(data, dict):
+                    for key in DEFAULT_CONFIG:
+                        clean[key] = validate_hotkey(data.get(key, clean[key])) or clean[key]
+                clean["api_key"] = ""
+                os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+                temp_file = CONFIG_FILE + ".tmp"
+                with open(temp_file, "w", encoding="utf-8") as file:
+                    json.dump(clean, file, indent=2)
+                os.replace(temp_file, CONFIG_FILE)
+            except Exception as exc:
+                LOG.warning("Klartext-API-Key konnte nach Migration nicht aus Config entfernt werden: %s", exc)
 
     def save_config(self):
         try:
@@ -359,12 +471,19 @@ class BluetoothRemoteApp:
             messagebox.showerror("Ungültige Eingabe", str(exc))
             return
 
+        env_key = os.environ.get("REMOTE_SWITCH_GEMINI_API_KEY", "").strip()
+        credential_saved = False
+        credential_error = None
+        if self.api_key and self.api_key != env_key:
+            credential_saved = write_credential_secret(self.api_key)
+            if not credential_saved:
+                credential_error = "Windows Credential Manager nicht verfügbar; Key wird als Fallback in der lokalen Config gespeichert."
+        elif not self.api_key and not env_key:
+            delete_credential_secret()
+
         data = dict(self.config)
-        # Wenn der Key aus der Umgebungsvariable kommt, nicht zusätzlich in die Datei schreiben.
-        if self.api_key and self.api_key != os.environ.get("REMOTE_SWITCH_GEMINI_API_KEY", "").strip():
-            data["api_key"] = self.api_key
-        else:
-            data["api_key"] = ""
+        # Kein Klartext-API-Key in der Config-Datei, wenn Credential Manager genutzt wird oder Env-Var aktiv ist.
+        data["api_key"] = "" if (credential_saved or env_key or not self.api_key) else self.api_key
 
         try:
             os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
@@ -372,7 +491,14 @@ class BluetoothRemoteApp:
             with open(temp_file, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=2)
             os.replace(temp_file, CONFIG_FILE)
-            messagebox.showinfo("Info", f"Konfiguration gespeichert!\n{CONFIG_FILE}")
+            if credential_error:
+                messagebox.showwarning("Hinweis", f"Konfiguration gespeichert.\n{credential_error}\n{CONFIG_FILE}")
+            elif self.api_key and self.api_key != env_key and credential_saved:
+                messagebox.showinfo("Info", "Konfiguration gespeichert.\nAPI-Key wurde sicher in der Windows Anmeldeinformationsverwaltung gespeichert.")
+            elif env_key:
+                messagebox.showinfo("Info", f"Konfiguration gespeichert.\nEs wird die Umgebungsvariable { 'REMOTE_SWITCH_GEMINI_API_KEY' } verwendet.")
+            else:
+                messagebox.showinfo("Info", f"Konfiguration gespeichert!\n{CONFIG_FILE}")
         except Exception as exc:
             LOG.exception("Konfiguration konnte nicht gespeichert werden")
             messagebox.showerror("Fehler", f"Konfiguration konnte nicht gespeichert werden:\n{exc}")

@@ -116,7 +116,7 @@ Die App findet den ESP automatisch (Status wechselt auf Grün: "Verbunden").
 
 Konfiguration:
 
-Gib deinen Google Gemini API Key ein (für die AI-Funktion), oder setze die Umgebungsvariable `REMOTE_SWITCH_GEMINI_API_KEY`.
+Gib deinen Google Gemini API Key normal in der App ein (für die AI-Funktion). Beim Speichern legt die App ihn automatisch in der **Windows Anmeldeinformationsverwaltung** ab. Optional kann stattdessen die Umgebungsvariable `REMOTE_SWITCH_GEMINI_API_KEY` gesetzt werden (hat Vorrang).
 
 Klicke auf "✨ KI Config Taste 1".
 
@@ -137,7 +137,8 @@ AI Fehler: Stelle sicher, dass `google-genai` installiert ist und dein API Key g
 
 ## 🔒 Sicherheitshinweise
 
-- Der Gemini-API-Key sollte möglichst als Umgebungsvariable (`REMOTE_SWITCH_GEMINI_API_KEY`) gesetzt werden. Wird er in der UI eingegeben, speichert die App ihn lokal in `%APPDATA%\Remote-Switch\remote_config.json` (nicht im Git-Repo ablegen).
+- Der Gemini-API-Key wird bei Eingabe in der UI automatisch in der **Windows Anmeldeinformationsverwaltung** (Credential Manager) gespeichert und nicht als Klartext in `remote_config.json` abgelegt. Vorhandene Klartext-Keys aus alten Config-Dateien werden beim Laden nach Möglichkeit migriert und aus der Config entfernt.
+- Optional kann `REMOTE_SWITCH_GEMINI_API_KEY` als Umgebungsvariable gesetzt werden (bewusster Override; nicht die bevorzugte Speicherform).
 - Signatur-/Zertifikatsdateien (`*.pfx`, `*.p12`) und Build-Ausgaben gehören nicht ins Repository.
 - Die BLE-Verbindung ist bewusst einfach gehalten (kein Pairing/Bonding), damit die Kopplung ohne PIN schnell funktioniert. Dadurch kann in Bluetooth-Reichweite theoretisch ein fremdes Gerät versuchen, sich zu verbinden. Für den normalen Einsatz als Tastatur-Remote ist das Risiko gering, aber es ist kein authentisiertes Sicherheitsprotokoll.
 

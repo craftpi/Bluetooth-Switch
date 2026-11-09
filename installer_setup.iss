@@ -2,7 +2,7 @@
 ; Benötigt: Inno Setup 6 (https://jrsoftware.org/isinfo.php)
 
 #define MyAppName "Remote-Switch"
-#define MyAppVersion "3.5"
+#define MyAppVersion "4.2"
 #define MyAppPublisher "craftpi"
 #define MyAppExeName "Remote-Switch.exe"
 
