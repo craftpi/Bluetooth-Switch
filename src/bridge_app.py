@@ -565,9 +565,28 @@ class BluetoothRemoteApp:
                     "Bitte prüfe API-Key, Internetverbindung und ob die Gemini API in deinem Google-Projekt aktiviert ist."
                 )
 
-            key_code = normalize_hotkey(response_text.replace("`", "").replace("'", "").replace('"', ""))
+            raw_response = response_text
+            cleaned = response_text.strip().replace("`", "").replace("'", "").replace('"', "").replace("<", "").replace(">", "")
+            # Modelle liefern trotz Anweisung manchmal Erklärungen; erste nicht-leere Zeile nehmen.
+            for line in cleaned.splitlines():
+                if line.strip():
+                    cleaned = line.strip()
+                    break
+            # Häufige Präfixe entfernen (z. B. "Hotkey: ctrl+s").
+            cleaned = re.sub(r"(?i)^\s*(hotkey|key|string|output)\s*[:=-]\s*", "", cleaned).strip()
+
+            try:
+                key_code = normalize_hotkey(cleaned)
+            except ValueError as exc:
+                raise ValueError(
+                    f"KI-Antwort konnte nicht als Hotkey übernommen werden.\n\n"
+                    f"KI-Antwort: {raw_response!r}\n"
+                    f"Bereinigt: {cleaned!r}\n\n"
+                    f"{exc}"
+                ) from exc
+
             if not key_code:
-                raise ValueError(f"KI hat keinen gültigen Hotkey geliefert: {response_text!r}")
+                raise ValueError(f"KI hat keinen gültigen Hotkey geliefert: {raw_response!r}")
 
             target_entry = {1: self.entry_btn1, 2: self.entry_btn2, 3: self.entry_btn3}[btn_num]
             target_entry.delete(0, tk.END)
@@ -575,7 +594,7 @@ class BluetoothRemoteApp:
             self.save_config()
         except Exception as exc:
             LOG.warning("KI-Konfiguration fehlgeschlagen: %s", exc)
-            messagebox.showerror("KI Fehler", f"Konnte KI nicht erreichen:\n\n{exc}")
+            messagebox.showerror("KI Fehler", f"KI-Konfiguration fehlgeschlagen:\n\n{exc}")
 
     # --- BLE LOGIK ---
     def force_reconnect(self):
