@@ -104,6 +104,7 @@ Falls kein Installer gewünscht:
 2. `dist/Remote-Switch.exe` kopieren wohin du willst
 3. Beim ersten Start wird das Icon automatisch extrahiert
 4. Autostart kann in der App aktiviert werden
+5. Die Konfiguration wird bevorzugt unter `%APPDATA%\Remote-Switch\remote_config.json` gespeichert; eine vorhandene `remote_config.json` neben der App/EXE wird beim ersten Start migriert
 
 5. 📖 Bedienungsanleitung
 
@@ -115,15 +116,15 @@ Die App findet den ESP automatisch (Status wechselt auf Grün: "Verbunden").
 
 Konfiguration:
 
-Gib deinen Google Gemini API Key ein (für die AI-Funktion).
+Gib deinen Google Gemini API Key ein (für die AI-Funktion), oder setze die Umgebungsvariable `REMOTE_SWITCH_GEMINI_API_KEY`.
 
 Klicke auf "✨ KI Config Taste 1".
 
 Gib einen Befehl ein, z.B. "Seite runter scrollen" oder "Screenshot machen".
 
-Die KI setzt den passenden Hotkey für dich.
+Die KI schlägt einen Hotkey vor; die App prüft ihn vor dem Speichern/Ausführen.
 
-Aktiviere bei Bedarf "Automatisch mit Windows starten".
+Aktiviere bei Bedarf "Automatisch mit Windows starten". Die App nutzt dafür den Parameter `--autostart` und startet minimiert.
 
 🔧 Troubleshooting
 
@@ -132,7 +133,13 @@ ESP verbindet nicht: Entferne "OneNote Remote" aus den Windows Bluetooth-Einstel
 LED leuchtet dauerhaft: Prüfe die Verkabelung der Taster. Die Firmware erwartet, dass Taster beim Drücken den Pin auf
 GND ziehen (Active Low).
 
-AI Fehler: Stelle sicher, dass google-genai installiert ist und dein API Key gültig ist.
+AI Fehler: Stelle sicher, dass `google-genai` installiert ist und dein API Key gültig ist (oder `REMOTE_SWITCH_GEMINI_API_KEY` gesetzt ist).
+
+## 🔒 Sicherheitshinweise
+
+- Der Gemini-API-Key sollte möglichst als Umgebungsvariable (`REMOTE_SWITCH_GEMINI_API_KEY`) gesetzt werden. Wird er in der UI eingegeben, speichert die App ihn lokal in `%APPDATA%\Remote-Switch\remote_config.json` (nicht im Git-Repo ablegen).
+- Signatur-/Zertifikatsdateien (`*.pfx`, `*.p12`) und Build-Ausgaben gehören nicht ins Repository.
+- Die BLE-Verbindung ist bewusst einfach gehalten (kein Pairing/Bonding), damit die Kopplung ohne PIN schnell funktioniert. Dadurch kann in Bluetooth-Reichweite theoretisch ein fremdes Gerät versuchen, sich zu verbinden. Für den normalen Einsatz als Tastatur-Remote ist das Risiko gering, aber es ist kein authentisiertes Sicherheitsprotokoll.
 
 📄 Lizenz
 
