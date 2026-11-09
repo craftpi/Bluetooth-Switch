@@ -528,7 +528,14 @@ class BluetoothRemoteApp:
             """.strip()
 
             response_text = ""
-            for model_name in ("gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-pro"):
+            errors = []
+            candidate_models = (
+                "gemini-2.5-flash",
+                "gemini-flash-latest",
+                "gemini-2.0-flash",
+                "gemini-2.5-flash-lite",
+            )
+            for model_name in candidate_models:
                 try:
                     response = client.models.generate_content(  # type: ignore
                         model=model_name,
@@ -540,16 +547,27 @@ class BluetoothRemoteApp:
                     )
                     if getattr(response, "text", None):
                         response_text = response.text
+                        LOG.info("KI-Antwort erhalten von Modell: %s", model_name)
                         break
-                except Exception:
+                    errors.append(f"{model_name}: leere Antwort")
+                except Exception as model_exc:
+                    msg = str(model_exc).strip() or model_exc.__class__.__name__
+                    errors.append(f"{model_name}: {msg}")
+                    LOG.info("KI-Modell fehlgeschlagen (%s): %s", model_name, msg)
                     continue
 
             if not response_text:
-                raise RuntimeError("Kein KI-Modell hat geantwortet.")
+                detail = "\n".join(f"- {e}" for e in errors[:4]) if errors else "- Unbekannter Fehler"
+                raise RuntimeError(
+                    "Kein KI-Modell hat geantwortet.\n\n"
+                    "Details:\n"
+                    f"{detail}\n\n"
+                    "Bitte prüfe API-Key, Internetverbindung und ob die Gemini API in deinem Google-Projekt aktiviert ist."
+                )
 
             key_code = normalize_hotkey(response_text.replace("`", "").replace("'", "").replace('"', ""))
             if not key_code:
-                raise ValueError("KI hat keinen gültigen Hotkey geliefert.")
+                raise ValueError(f"KI hat keinen gültigen Hotkey geliefert: {response_text!r}")
 
             target_entry = {1: self.entry_btn1, 2: self.entry_btn2, 3: self.entry_btn3}[btn_num]
             target_entry.delete(0, tk.END)
@@ -557,7 +575,7 @@ class BluetoothRemoteApp:
             self.save_config()
         except Exception as exc:
             LOG.warning("KI-Konfiguration fehlgeschlagen: %s", exc)
-            messagebox.showerror("KI Fehler", f"Konnte KI nicht erreichen:\n{exc}")
+            messagebox.showerror("KI Fehler", f"Konnte KI nicht erreichen:\n\n{exc}")
 
     # --- BLE LOGIK ---
     def force_reconnect(self):
