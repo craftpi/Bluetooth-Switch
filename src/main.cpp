@@ -162,7 +162,8 @@ void setup() {
   NimBLEService* pService = pServer->createService(SERVICE_UUID);
   pCharButton = pService->createCharacteristic(CHAR_BUTTON_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   pCharBattery = pService->createCharacteristic(CHAR_BATTERY_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
-  pService->start();
+  
+  // pService->start() wird in NimBLE 2.x nicht mehr benötigt, da Services automatisch starten.
 
   NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
   NimBLEAdvertisementData advData;
