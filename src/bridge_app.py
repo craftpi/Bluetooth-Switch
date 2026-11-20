@@ -708,9 +708,16 @@ class BluetoothRemoteApp:
 
     def battery_handler(self, _sender, data):
         try:
-            value = max(0, min(100, int.from_bytes(data, byteorder="little")))
-            self.battery_level = value
-            self.root.after(0, lambda v=value: self.lbl_battery.config(text=f"🔋 Akku: {v}%"))
+            val = int.from_bytes(data, byteorder="little")
+            if val == 255:
+                text = "⚡ Akku wird geladen..."
+                self.battery_level = 100 # Intern als voll werten für Logik
+            else:
+                value = max(0, min(100, val))
+                self.battery_level = value
+                text = f"🔋 Akku: {value}%"
+            
+            self.root.after(0, lambda t=text: self.lbl_battery.config(text=t))
         except Exception:
             pass
 

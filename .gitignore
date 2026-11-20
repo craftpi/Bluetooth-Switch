@@ -36,3 +36,4 @@ Thumbs.db
 # OpenCode / IDE
 *.code-workspace
 opencode.json
+opencode.jsonc
